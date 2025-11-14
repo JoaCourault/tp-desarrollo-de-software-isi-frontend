@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AltaHuespedRequestDTO } from "@/src/dto/Huesped/AltaHuespedRequest.dto";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -15,20 +15,15 @@ import {
 } from "lucide-react";
 
 import { HuespedApi } from "@/src/api/huesped.api";
+import {
+    AltaHuespedRequestDTO,
+} from "@/src/dto/Huesped/AltaHuespedRequest.dto";
 
 type Tab = "alta" | "buscar";
 
 export default function GestionHuespedesPage() {
     const [activeTab, setActiveTab] = useState<Tab>("alta");
     const router = useRouter();
-
-    const handleLogout = () => {
-        // limpiamos usuario del login
-        try {
-            localStorage.removeItem("usuarioLogueado");
-        } catch {}
-        router.push("/Usuario/Login");
-    };
 
     return (
         <div className="min-h-screen bg-rose-50 flex flex-col">
@@ -50,14 +45,17 @@ export default function GestionHuespedesPage() {
                     <Button
                         variant="outline"
                         className="border-rose-200 text-rose-900 hover:bg-rose-100 flex items-center gap-2"
-                        onClick={handleLogout}
+                        onClick={() => {
+                            localStorage.removeItem("usuarioLogueado");
+                            router.push("/Usuario/Login");
+                        }}
                     >
                         <LogOut className="h-4 w-4" />
                         <span>Cerrar Sesión</span>
                     </Button>
                 </div>
 
-                {/* TABS PRINCIPALES */}
+                {/* TABS PRINCIPALES (Huéspedes / Habitaciones) */}
                 <div className="border-t bg-rose-50/60">
                     <div className="max-w-6xl mx-auto flex gap-2 px-4 py-2">
                         <Button className="bg-rose-900 hover:bg-rose-800 text-white text-sm">
@@ -76,7 +74,7 @@ export default function GestionHuespedesPage() {
             {/* CONTENIDO PRINCIPAL */}
             <main className="flex-1">
                 <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-                    {/* TÍTULO */}
+                    {/* TÍTULO SECCIÓN */}
                     <section>
                         <h1 className="text-2xl font-semibold text-rose-950">
                             Gestión de Huéspedes
@@ -86,7 +84,7 @@ export default function GestionHuespedesPage() {
                         </p>
                     </section>
 
-                    {/* BOTONES PRINCIPALES */}
+                    {/* BOTONES GRANDES ALTA / BUSCAR */}
                     <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <button
                             type="button"
@@ -123,30 +121,27 @@ export default function GestionHuespedesPage() {
     );
 }
 
-/* ============================================================
-    CU09 – DAR ALTA HUÉSPED  (FUNCIONAL)
-=============================================================== */
+/* ================= CU09 – DAR ALTA HUÉSPED ================= */
 
 function AltaHuesped() {
-    const router = useRouter();
     const api = new HuespedApi();
 
-    // BOTÓN SIGUIENTE (submit)
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const form = e.currentTarget as HTMLFormElement;
         const data = new FormData(form);
 
-        // ⭐ IMPORTANTE: el backend espera { "huesped": { ... } }
-        const payload = {
+        const payload: AltaHuespedRequestDTO = {
             huesped: {
                 idHuesped: null,
                 nombre: String(data.get("nombre") ?? ""),
                 apellido: String(data.get("apellido") ?? ""),
-                tipoDocumento: { tipoDocumento: String(data.get("tipoDocumento") ?? "") },
+                tipoDocumento: {
+                    tipoDocumento: String(data.get("tipoDocumento") ?? ""),
+                },
                 numDoc: String(data.get("numDoc") ?? ""),
                 posicionIva: String(data.get("posicionIva") ?? ""),
-                cuit: String(data.get("cuit") ?? ""),
+                cuit: String(data.get("cuit") ?? "") || null,
                 fechaNacimiento: String(data.get("fechaNacimiento") ?? ""),
                 telefono: String(data.get("telefono") ?? ""),
                 email: String(data.get("email") ?? ""),
@@ -157,23 +152,23 @@ function AltaHuesped() {
                     numero: String(data.get("numero") ?? ""),
                     departamento: String(data.get("departamento") ?? ""),
                     piso: String(data.get("piso") ?? ""),
-                    cp: String(data.get("cp") ?? ""),
+                    codigoPostal: Number(data.get("cp") ?? 0),
                     localidad: String(data.get("localidad") ?? ""),
                     provincia: String(data.get("provincia") ?? ""),
                     pais: String(data.get("pais") ?? ""),
                     id: null,
                 },
                 idsEstadias: [],
-                eliminado: false
-            }
+                eliminado: false,
+            },
         };
 
         try {
-            const res = await api.alta(payload as AltaHuespedRequestDTO);
+            const res = await api.alta(payload);
 
             if (res.resultado.id === 0) {
                 alert("Huésped creado exitosamente");
-                router.push("/GestionHuespedes");
+                form.reset();
             } else {
                 alert(res.resultado.mensaje);
             }
@@ -183,7 +178,6 @@ function AltaHuesped() {
         }
     };
 
-    // BOTÓN CANCELAR → limpia el formulario
     const handleCancelar = () => {
         const form = document.getElementById(
             "formAltaHuesped"
@@ -194,7 +188,9 @@ function AltaHuesped() {
     return (
         <Card className="border-rose-100 shadow-sm">
             <div className="border-b border-rose-100 px-6 py-4">
-                <h2 className="text-lg font-semibold text-rose-950">Dar Alta Huésped</h2>
+                <h2 className="text-lg font-semibold text-rose-950">
+                    Dar Alta Huésped
+                </h2>
                 <p className="text-sm text-gray-600">
                     Ingrese los datos personales del nuevo huésped
                 </p>
@@ -311,7 +307,14 @@ function AltaHuesped() {
                             <label className="block text-sm font-medium text-rose-950 mb-1">
                                 Código Postal *
                             </label>
-                            <Input name="cp" placeholder="CP" required />
+                            <Input
+                                name="cp"
+                                type="number"
+                                min={1}
+                                placeholder="CP"
+                                required
+                            />
+
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-rose-950 mb-1">
@@ -398,22 +401,22 @@ function AltaHuesped() {
     );
 }
 
-/* ================================
-    CU02 – BUSCAR HUÉSPED
-================================ */
+/* ================= CU02 – BUSCAR HUÉSPED ================= */
 
 function BuscarHuesped() {
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        // acá en el futuro conectás con el back para CU02
+        // TODO: conectar CU02
     };
 
     return (
         <div className="space-y-5">
-            {/* filtros */}
+            {/* Card de filtros */}
             <Card className="border-rose-100 shadow-sm">
                 <div className="border-b border-rose-100 px-6 py-4">
-                    <h2 className="text-lg font-semibold text-rose-950">Buscar Huésped</h2>
+                    <h2 className="text-lg font-semibold text-rose-950">
+                        Buscar Huésped
+                    </h2>
                     <p className="text-sm text-gray-600">
                         Complete los campos para buscar huéspedes
                     </p>
@@ -466,7 +469,7 @@ function BuscarHuesped() {
                 </form>
             </Card>
 
-            {/* resultados */}
+            {/* Card de resultados */}
             <Card className="border-rose-100 shadow-sm">
                 <div className="border-b border-rose-100 px-6 py-4">
                     <h2 className="text-lg font-semibold text-rose-950">
@@ -481,3 +484,5 @@ function BuscarHuesped() {
         </div>
     );
 }
+
+
