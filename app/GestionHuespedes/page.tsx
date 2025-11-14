@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
+import ModalAlert from "@/components/modalAlert/modalAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { BuscarHuespedRequestDTO } from "@/src/dto/Huesped/BuscarHuespedRequest.dto";
 import {
     Users,
     UserPlus,
@@ -13,7 +14,7 @@ import {
     Building2,
     LogOut,
 } from "lucide-react";
-
+import { HuespedDTO } from "@/src/dto/Huesped/Huesped.dto";
 import { HuespedApi } from "@/src/api/huesped.api";
 import {
     AltaHuespedRequestDTO,
@@ -55,12 +56,13 @@ export default function GestionHuespedesPage() {
                     </Button>
                 </div>
 
-                {/* TABS PRINCIPALES (Huéspedes / Habitaciones) */}
+                {/* TABS PRINCIPALES */}
                 <div className="border-t bg-rose-50/60">
                     <div className="max-w-6xl mx-auto flex gap-2 px-4 py-2">
                         <Button className="bg-rose-900 hover:bg-rose-800 text-white text-sm">
                             Gestión de Huéspedes
                         </Button>
+
                         <Button
                             variant="ghost"
                             className="text-rose-900 hover:bg-rose-100 text-sm"
@@ -74,7 +76,7 @@ export default function GestionHuespedesPage() {
             {/* CONTENIDO PRINCIPAL */}
             <main className="flex-1">
                 <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-                    {/* TÍTULO SECCIÓN */}
+                    {/* TÍTULO */}
                     <section>
                         <h1 className="text-2xl font-semibold text-rose-950">
                             Gestión de Huéspedes
@@ -84,7 +86,7 @@ export default function GestionHuespedesPage() {
                         </p>
                     </section>
 
-                    {/* BOTONES GRANDES ALTA / BUSCAR */}
+                    {/* BOTONES ALTA / BUSCAR */}
                     <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <button
                             type="button"
@@ -121,10 +123,30 @@ export default function GestionHuespedesPage() {
     );
 }
 
-/* ================= CU09 – DAR ALTA HUÉSPED ================= */
+/* ============================================================
+   CU09 – DAR ALTA HUÉSPED
+============================================================ */
 
 function AltaHuesped() {
     const api = new HuespedApi();
+    const router = useRouter();
+
+    // Estados del modal
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalType, setModalType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
+    const [modalTitle, setModalTitle] = useState('');
+    const [modalMessage, setModalMessage] = useState('');
+
+    const showAlert = (
+        type: 'info' | 'success' | 'warning' | 'error',
+        title: string,
+        message: string
+    ) => {
+        setModalType(type);
+        setModalTitle(title);
+        setModalMessage(message);
+        setModalOpen(true);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -167,21 +189,23 @@ function AltaHuesped() {
             const res = await api.alta(payload);
 
             if (res.resultado.id === 0) {
-                alert("Huésped creado exitosamente");
+                showAlert("success", "Huésped creado", "El huésped fue cargado exitosamente.");
                 form.reset();
             } else {
-                alert(res.resultado.mensaje);
+                showAlert("error", "Error al crear huésped", res.resultado.mensaje);
             }
         } catch (err) {
             console.error(err);
-            alert("Error inesperado al guardar el huésped.");
+            showAlert(
+                "error",
+                "Error inesperado",
+                "Ocurrió un error inesperado al guardar el huésped."
+            );
         }
     };
 
     const handleCancelar = () => {
-        const form = document.getElementById(
-            "formAltaHuesped"
-        ) as HTMLFormElement | null;
+        const form = document.getElementById("formAltaHuesped") as HTMLFormElement | null;
         if (form) form.reset();
     };
 
@@ -217,7 +241,7 @@ function AltaHuesped() {
                     </div>
                 </div>
 
-                {/* Documento / CUIT / Fecha nacimiento */}
+                {/* Documento / CUIT / Fecha */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-rose-950 mb-1">
@@ -233,18 +257,21 @@ function AltaHuesped() {
                             <option value="LE / LC">LE / LC</option>
                         </select>
                     </div>
+
                     <div>
                         <label className="block text-sm font-medium text-rose-950 mb-1">
                             Número de Documento *
                         </label>
                         <Input name="numDoc" placeholder="Ingrese número" required />
                     </div>
+
                     <div>
                         <label className="block text-sm font-medium text-rose-950 mb-1">
                             CUIT
                         </label>
                         <Input name="cuit" placeholder="XX-XXXXXXXX-X" />
                     </div>
+
                     <div>
                         <label className="block text-sm font-medium text-rose-950 mb-1">
                             Fecha de Nacimiento *
@@ -253,7 +280,7 @@ function AltaHuesped() {
                     </div>
                 </div>
 
-                {/* Posición IVA */}
+                {/* IVA */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-rose-950 mb-1">
@@ -266,12 +293,11 @@ function AltaHuesped() {
                         >
                             <option>Consumidor Final</option>
                             <option>Responsable Inscripto</option>
-                            <option>Monotributista</option>
                         </select>
                     </div>
                 </div>
 
-                {/* Dirección */}
+                {/* DIRECCIÓN */}
                 <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-rose-950">Dirección</h3>
 
@@ -307,14 +333,7 @@ function AltaHuesped() {
                             <label className="block text-sm font-medium text-rose-950 mb-1">
                                 Código Postal *
                             </label>
-                            <Input
-                                name="cp"
-                                type="number"
-                                min={1}
-                                placeholder="CP"
-                                required
-                            />
-
+                            <Input name="cp" type="number" min={1} required placeholder="CP" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-rose-950 mb-1">
@@ -340,17 +359,13 @@ function AltaHuesped() {
                     </div>
                 </div>
 
-                {/* Contacto */}
+                {/* CONTACTO */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-rose-950 mb-1">
                             Teléfono *
                         </label>
-                        <Input
-                            name="telefono"
-                            placeholder="+54 11 1234-5678"
-                            required
-                        />
+                        <Input name="telefono" placeholder="+54 11 1234-5678" required />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-rose-950 mb-1">
@@ -362,14 +377,11 @@ function AltaHuesped() {
                         <label className="block text-sm font-medium text-rose-950 mb-1">
                             Nacionalidad *
                         </label>
-                        <Input
-                            name="nacionalidad"
-                            placeholder="Nacionalidad"
-                            required
-                        />
+                        <Input name="nacionalidad" placeholder="Nacionalidad" required />
                     </div>
                 </div>
 
+                {/* Ocupación */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-rose-950 mb-1">
@@ -379,7 +391,7 @@ function AltaHuesped() {
                     </div>
                 </div>
 
-                {/* BOTONES ABAJO */}
+                {/* BOTONES */}
                 <div className="flex justify-end gap-3 pt-4 border-t border-rose-100 mt-4">
                     <Button
                         type="button"
@@ -389,6 +401,7 @@ function AltaHuesped() {
                     >
                         Cancelar
                     </Button>
+
                     <Button
                         type="submit"
                         className="bg-rose-900 hover:bg-rose-800 text-white"
@@ -397,21 +410,72 @@ function AltaHuesped() {
                     </Button>
                 </div>
             </form>
+
+            {/* MODAL ALERT */}
+            <ModalAlert
+                open={modalOpen}
+                title={modalTitle}
+                message={modalMessage}
+                type={modalType}
+                onOk={() => {
+                    if (modalType === "success") {
+                        window.location.reload();
+                    }
+                    setModalOpen(false);
+                }}
+                okText="Aceptar"
+            />
         </Card>
     );
 }
 
-/* ================= CU02 – BUSCAR HUÉSPED ================= */
+/* ============================================================
+   CU02 – BUSCAR HUÉSPED
+============================================================ */
 
 function BuscarHuesped() {
-    const handleSearch = (e: React.FormEvent) => {
+    const api = new HuespedApi();
+    const [resultados, setResultados] = useState<HuespedDTO[]>([]);
+    const [mensaje, setMensaje] = useState("");
+
+    const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
-        // TODO: conectar CU02
+        const form = e.currentTarget as HTMLFormElement;
+        const data = new FormData(form);
+
+        const tipoDocValue = String(data.get("tipoDocumento") ?? "");
+
+        const payload: BuscarHuespedRequestDTO = {
+            huesped: {
+                nombre: String(data.get("nombre") ?? "") || null,
+                apellido: String(data.get("apellido") ?? "") || null,
+                tipoDocumento: tipoDocValue
+                    ? { tipoDocumento: tipoDocValue }
+                    : null,
+                numDoc: String(data.get("numDoc") ?? "") || null,
+            },
+        };
+
+        try {
+            const res = await api.buscar(payload);
+
+            if (res.resultado.id === 0) {
+                setResultados(res.huespedesEncontrados);
+                setMensaje("");
+            } else {
+                setResultados([]);
+                setMensaje(res.resultado.mensaje);
+            }
+        } catch (err) {
+            console.error(err);
+            setResultados([]);
+            setMensaje("Error interno al buscar huéspedes");
+        }
     };
 
     return (
         <div className="space-y-5">
-            {/* Card de filtros */}
+            {/* Filtros */}
             <Card className="border-rose-100 shadow-sm">
                 <div className="border-b border-rose-100 px-6 py-4">
                     <h2 className="text-lg font-semibold text-rose-950">
@@ -424,42 +488,24 @@ function BuscarHuesped() {
 
                 <form onSubmit={handleSearch} className="px-6 py-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div>
-                            <label className="block text-sm font-medium text-rose-950 mb-1">
-                                Nombre
-                            </label>
-                            <Input name="nombre" placeholder="Buscar por nombre..." />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-rose-950 mb-1">
-                                Apellido
-                            </label>
-                            <Input name="apellido" placeholder="Buscar por apellido..." />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-rose-950 mb-1">
-                                Tipo de Documento
-                            </label>
-                            <select
-                                name="tipoDocumento"
-                                className="h-10 w-full rounded-md border border-rose-200 px-3 text-sm"
-                            >
-                                <option>DNI, LE, Pasaporte...</option>
-                                <option>DNI</option>
-                                <option>Pasaporte</option>
-                                <option>LE / LC</option>
-                            </select>
-                        </div>
+                        <Input name="nombre" placeholder="Nombre..." />
+                        <Input name="apellido" placeholder="Apellido..." />
+                        <select
+                            name="tipoDocumento"
+                            className="h-10 w-full rounded-md border border-rose-200 px-3 text-sm"
+                            defaultValue=""
+                        >
+                            <option value="">Tipo documento (opcional)</option>
+                            <option value="DNI">DNI</option>
+                            <option value="Pasaporte">Pasaporte</option>
+                            <option value="LE / LC">LE / LC</option>
+                        </select>
+
                         <div className="flex gap-2 items-end">
-                            <div className="flex-1">
-                                <label className="block text-sm font-medium text-rose-950 mb-1">
-                                    Número de Documento
-                                </label>
-                                <Input name="numDoc" placeholder="Número..." />
-                            </div>
+                            <Input name="numDoc" placeholder="Número..." />
                             <Button
                                 type="submit"
-                                className="mt-[2px] bg-rose-900 hover:bg-rose-800 text-white flex items-center gap-2"
+                                className="bg-rose-900 hover:bg-rose-800 text-white flex items-center gap-2"
                             >
                                 <SearchIcon className="h-4 w-4" />
                                 Buscar
@@ -469,20 +515,33 @@ function BuscarHuesped() {
                 </form>
             </Card>
 
-            {/* Card de resultados */}
+            {/* Resultados */}
             <Card className="border-rose-100 shadow-sm">
                 <div className="border-b border-rose-100 px-6 py-4">
                     <h2 className="text-lg font-semibold text-rose-950">
-                        Resultados (0)
+                        Resultados ({resultados.length})
                     </h2>
                 </div>
 
-                <div className="px-6 py-10 text-center text-sm text-gray-500">
-                    No se encontraron huéspedes que coincidan con su búsqueda.
+                <div className="px-6 py-6">
+                    {resultados.length > 0 ? (
+                        <ul className="space-y-2">
+                            {resultados.map((h, i) => (
+                                <li
+                                    key={i}
+                                    className="p-3 border rounded-md bg-white shadow-sm text-sm"
+                                >
+                                    <strong>{h.apellido}, {h.nombre}</strong> — {h.tipoDocumento?.tipoDocumento} {h.numDoc}
+                                    <br />
+                                    <span className="text-gray-600">{h.email || "Sin email"}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-gray-500">{mensaje || "No hay resultados"}</p>
+                    )}
                 </div>
             </Card>
         </div>
     );
 }
-
-

@@ -2,7 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "antd/dist/reset.css";
-import ModalAlertHost from "components/modalAlert/modalAlertHost";
+import ModalAlertHost from "@/components/modalAlert/modalAlertHost";
+
 
 
 const geistSans = Geist({

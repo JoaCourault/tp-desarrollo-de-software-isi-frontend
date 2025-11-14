@@ -40,7 +40,7 @@ export class Service {
               error.message ||
               'Error en la comunicación con el servidor.';
 
-            // Emitir error al bus de UI para que el ModalAlertHost lo muestre
+            // emite error al bus de UI para que el ModalAlertHost lo muestre
             showModal({
               title: `Error${status ? ` (${status})` : ''}`,
               message: `${message}${url ? '\n' + url : ''}`,
@@ -48,42 +48,30 @@ export class Service {
             });
           } catch (showErr) {
             // Si mostrar el modal falla, al menos loguear en consola
-            // eslint-disable-next-line no-console
+
             console.error('Error mostrando modal de error:', showErr);
           }
 
-          // Re-lanzar el error para que el llamador también pueda manejarlo
+          // Relanza el error para que el llamador también pueda manejarlo
           return Promise.reject(error);
         }
       );
     }
   }
 
-  /**
-   * GET request
-   * @param path ruta relativa o absoluta
-   * @param config AxiosRequestConfig opcional
-   */
+
   static async get<T = any>(path: string, config?: AxiosRequestConfig): Promise<T> {
     const res = await this.client.get<T>(path, config);
     return res.data;
   }
 
-  /**
-   * POST request
-   * @param path ruta relativa o absoluta
-   * @param payload body a enviar
-   * @param config AxiosRequestConfig opcional
-   */
+
   static async post<T = any, R = any>(path: string, payload?: T, config?: AxiosRequestConfig): Promise<R> {
     const res = await this.client.post<R>(path, payload, config);
     return res.data;
   }
 
-  /**
-   * Obtiene la instancia de Axios utilizada internamente.
-   * Esto permite personalizar la configuración o agregar interceptores si es necesario.
-   */
+
   static getClient(): AxiosInstance {
     return this.client;
   }
