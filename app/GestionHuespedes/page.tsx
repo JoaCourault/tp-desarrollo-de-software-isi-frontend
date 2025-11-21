@@ -66,9 +66,11 @@ export default function GestionHuespedesPage() {
                         <Button
                             variant="ghost"
                             className="text-rose-900 hover:bg-rose-100 text-sm"
+                            onClick={() => router.push("/GestionHabitaciones/Disponibilidad")}
                         >
                             Gestión de Habitaciones
                         </Button>
+
                     </div>
                 </div>
             </header>
@@ -174,7 +176,7 @@ function AltaHuesped() {
                     numero: String(data.get("numero") ?? ""),
                     departamento: String(data.get("departamento") ?? ""),
                     piso: String(data.get("piso") ?? ""),
-                    codigoPostal: Number(data.get("cp") ?? 0),
+                    cp: String(data.get("cp") ?? 0),
                     localidad: String(data.get("localidad") ?? ""),
                     provincia: String(data.get("provincia") ?? ""),
                     pais: String(data.get("pais") ?? ""),

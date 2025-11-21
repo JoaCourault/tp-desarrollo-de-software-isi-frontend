@@ -1,5 +1,8 @@
-import { HuespedDTO } from "./Huesped.dto";
-
 export interface BuscarHuespedRequestDTO {
-    huesped: Partial<HuespedDTO> | null;
+    huesped: {
+        nombre: string | null;
+        apellido: string | null;
+        tipoDocumento: { tipoDocumento: string } | null;
+        numDoc: string | null;
+    } | null;
 }
