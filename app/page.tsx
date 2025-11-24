@@ -1,68 +1,172 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useRouter } from "next/navigation";
+
+// Imports de TU lógica de negocio
+import { UsuarioApi } from "@/src/api/usuario.api";
+import { AutenticarUsuarioResponseDto } from "@/src/dto/Usuario/AutenticarUsuario/AutenticarUsuarioResponse.dto";
+
+// Componentes de UI
+import {
+    Card, CardHeader, CardTitle, CardDescription, CardContent
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+    Form, FormField, FormItem,
+    FormControl, FormLabel, FormMessage
+} from "@/components/ui/form";
+
+import { Eye, EyeOff, Hotel } from "lucide-react";
+
+const formSchema = z.object({
+    nombre: z.string().min(1, "Ingrese un nombre"),
+    apellido: z.string().min(1, "Ingrese un apellido"),
+    password: z.string().min(1, "Ingrese una contraseña"),
+});
+
+export default function LoginPage() {
+    const router = useRouter();
+    const usuarioApi = new UsuarioApi(); // Instancia de tu API real
+
+    const [loading, setLoading] = useState(false);
+    const [passwordVisible, setPasswordVisible] = useState(false);
+    const [errorMensaje, setErrorMensaje] = useState("");
+
+    const form = useForm<z.infer<typeof formSchema>>({
+        resolver: zodResolver(formSchema),
+        defaultValues: { nombre: "", apellido: "", password: "" }
+    });
+
+    // 1. NUEVO: Verificar si ya está logueado al entrar a la raíz
+    useEffect(() => {
+        const usuarioGuardado = localStorage.getItem("usuarioLogueado");
+        if (usuarioGuardado) {
+            router.push("/dashboard");
+        }
+    }, [router]);
+
+    const onSubmit = async (values: z.infer<typeof formSchema>) => {
+        setLoading(true);
+        setErrorMensaje("");
+
+        try {
+            // 2. Tu llamada a la API real
+            const response: AutenticarUsuarioResponseDto = await usuarioApi.login(values.nombre, values.apellido, values.password);
+            console.log("RESPUESTA LOGIN:", response);
+
+            if (response?.usuario?.idUsuario) {
+                // Guardar usuario en LocalStorage
+                localStorage.setItem("usuarioLogueado", JSON.stringify(response.usuario));
+
+                // 3. CAMBIO CLAVE: Redirigir al nuevo Dashboard unificado
+                router.push("/dashboard");
+            } else {
+                setErrorMensaje("Credenciales incorrectas.");
+            }
+
+        } catch (e) {
+            console.error(e);
+            setErrorMensaje("Error de conexión o datos inválidos.");
+        }
+
+        setLoading(false);
+    };
+
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-rose-50/50 px-4 font-sans">
+            <Card className="w-full max-w-md shadow-xl border-rose-100 bg-white">
+                <CardHeader className="text-center space-y-2">
+                    <div className="mx-auto w-12 h-12 bg-rose-900 rounded-xl flex items-center justify-center mb-2 shadow-lg shadow-rose-900/20">
+                        <Hotel className="w-7 h-7 text-white" />
+                    </div>
+                    <CardTitle className="text-2xl font-bold text-rose-950">Flower Hotel</CardTitle>
+                    <CardDescription>Inicie sesión para acceder al sistema</CardDescription>
+                </CardHeader>
+
+                <CardContent>
+                    <Form {...form}>
+                        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="nombre"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Nombre</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} className="bg-white" placeholder="Ej: Juan" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="apellido"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Apellido</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} className="bg-white" placeholder="Ej: Pérez" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            <FormField
+                                control={form.control}
+                                name="password"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Contraseña</FormLabel>
+                                        <div className="relative">
+                                            <FormControl>
+                                                <Input
+                                                    type={passwordVisible ? "text" : "password"}
+                                                    className="pr-10 bg-white"
+                                                    placeholder="••••••"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPasswordVisible(!passwordVisible)}
+                                                className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+                                            >
+                                                {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            </button>
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            {errorMensaje && (
+                                <div className="p-3 rounded-md bg-red-50 text-red-600 text-sm text-center border border-red-100">
+                                    {errorMensaje}
+                                </div>
+                            )}
+
+                            <Button
+                                type="submit"
+                                className="w-full bg-rose-900 hover:bg-rose-800 text-white font-medium shadow-md shadow-rose-900/10 transition-all"
+                                disabled={loading}
+                            >
+                                {loading ? "Ingresando..." : "Iniciar Sesión"}
+                            </Button>
+                        </form>
+                    </Form>
+                </CardContent>
+            </Card>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+    );
 }
-
-
-
