@@ -4,13 +4,13 @@ import { useState } from "react";
 import {
     Bed,
     Search,
-    CalendarDays,
     CheckCircle2,
     AlertCircle,
-    CalendarRange
+    CalendarRange,
+    X,
+    Trash2
 } from "lucide-react";
 
-// --- COMPONENTES UI ---
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-// --- TIPOS ---
+// === Tipos ===
 interface HabitacionDTO {
     id_habitacion: string;
     numero: number;
@@ -41,31 +41,55 @@ interface HabitacionDisponibilidad {
     disponibilidad: DisponibilidadDia[];
 }
 
+// === NUEVO Tipo para las múltiples selecciones ===
+interface Seleccion {
+    idHabitacion: string;
+    fechaDesde: string;
+    fechaHasta: string;
+    numero: number;
+}
+
+// ========================================================================
+// ========================== COMPONENTE PRINCIPAL =========================
+// ========================================================================
 export function RoomManagement() {
-    // Estados de Búsqueda
+
+    // Estados de búsqueda
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
     const [loading, setLoading] = useState(false);
     const [gridData, setGridData] = useState<HabitacionDisponibilidad[]>([]);
     const [searched, setSearched] = useState(false);
 
-    // Estados de Selección
-    const [seleccionRango, setSeleccionRango] = useState<{ start: string | null, end: string | null, roomId: string | null }>({ start: null, end: null, roomId: null });
+    // Estado para selección temporal de rango al hacer click
+    const [tempSelect, setTempSelect] = useState<{
+        start: string | null,
+        end: string | null,
+        roomId: string | null
+    }>({ start: null, end: null, roomId: null });
 
-    // Estados Modal
+    // === NUEVO === Lista de reservas acumuladas
+    const [selecciones, setSelecciones] = useState<Seleccion[]>([]);
+
+    // Modal final de confirmación
     const [modalOpen, setModalOpen] = useState(false);
     const [guestData, setGuestData] = useState({ nombre: "", apellido: "", telefono: "" });
 
-    // --- HELPER: Formatear fecha ---
+    // Slide-over (panel lateral)
+    const [panelOpen, setPanelOpen] = useState(false);
+
+    // Función de formateo de fechas
     const formatearFecha = (fechaStr: string) => {
         const date = new Date(fechaStr + "T00:00:00");
         return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit" }).format(date);
     };
 
-    // --- LÓGICA DE BÚSQUEDA ---
+    // =====================================================================
+    // ========================== BUSCAR DISPONIBILIDAD =====================
+    // =====================================================================
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!desde || !hasta) return;
+
         if (new Date(desde) > new Date(hasta)) {
             alert("La fecha 'Desde' no puede ser mayor a 'Hasta'");
             return;
@@ -73,107 +97,146 @@ export function RoomManagement() {
 
         setLoading(true);
         setSearched(true);
-        setSeleccionRango({ start: null, end: null, roomId: null });
+        setTempSelect({ start: null, end: null, roomId: null });
 
         try {
             const res = await fetch(`http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}`);
             if (!res.ok) throw new Error("Error al obtener datos");
             const data: HabitacionDisponibilidad[] = await res.json();
             setGridData(data);
-        } catch (error) {
-            console.error(error);
-            alert("Error al cargar disponibilidad. Verifique que el Backend esté corriendo.");
+        } catch (e) {
+            alert("Error cargando disponibilidad");
         } finally {
             setLoading(false);
         }
     };
 
-    // --- LÓGICA DE SELECCIÓN ---
-    const handleCellClick = (roomId: string, dateStr: string, status: string) => {
-        if (status === "MANTENIMIENTO" || status === "OCUPADA") {
-            alert("La habitación está bloqueada por mantenimiento u ocupación física.");
-            return;
-        }
-        if (status === "RESERVADA") {
-            const confirmar = window.confirm("⚠️ Esta fecha ya tiene una reserva registrada.\n\n¿Desea seleccionarla de todas formas?");
-            if (!confirmar) return;
-        }
+    // =====================================================================
+    // ========================= SELECCIÓN DE RANGOS ========================
+    // =====================================================================
+    const handleCellClick = (roomId: string, dateStr: string, estado: string, numero: number) => {
+        if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
-        if (seleccionRango.roomId && seleccionRango.roomId !== roomId) {
-            setSeleccionRango({ start: dateStr, end: null, roomId });
-            return;
-        }
+        if (!tempSelect.start) {
+            setTempSelect({ start: dateStr, end: null, roomId });
+        } else if (tempSelect.start && !tempSelect.end) {
+            const start = tempSelect.start;
+            let from = start;
+            let to = dateStr;
 
-        if (!seleccionRango.start || (seleccionRango.start && seleccionRango.end)) {
-            setSeleccionRango({ start: dateStr, end: null, roomId });
-        } else {
-            if (new Date(dateStr) < new Date(seleccionRango.start)) {
-                setSeleccionRango({ start: dateStr, end: seleccionRango.start, roomId });
-            } else {
-                setSeleccionRango({ ...seleccionRango, end: dateStr });
+            if (new Date(dateStr) < new Date(start)) {
+                from = dateStr;
+                to = start;
             }
+
+            setTempSelect({ start: from, end: to, roomId });
+        } else {
+            // reiniciar selección
+            setTempSelect({ start: dateStr, end: null, roomId });
         }
     };
 
-    const isSelected = (roomId: string, dateStr: string) => {
-        if (seleccionRango.roomId !== roomId) return false;
-        if (seleccionRango.start === dateStr) return true;
-        if (seleccionRango.end === dateStr) return true;
-        if (seleccionRango.start && seleccionRango.end) {
-            const d = new Date(dateStr);
-            const start = new Date(seleccionRango.start);
-            const end = new Date(seleccionRango.end);
-            return d > start && d < end;
-        }
-        return false;
+    const isTempSelected = (roomId: string, dateStr: string) => {
+        if (tempSelect.roomId !== roomId) return false;
+        if (!tempSelect.start) return false;
+
+        const d = new Date(dateStr);
+        const start = new Date(tempSelect.start);
+        if (!tempSelect.end) return d.getTime() === start.getTime();
+
+        const end = new Date(tempSelect.end);
+        return d >= start && d <= end;
     };
 
-    // --- LÓGICA DE CONFIRMACIÓN ---
-    const handleIniciarReserva = () => {
-        if (!seleccionRango.start || !seleccionRango.end) return;
-        setModalOpen(true);
+    // =====================================================================
+    // =========================== AÑADIR RESERVA ===========================
+    // =====================================================================
+    const agregarSeleccion = () => {
+        if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
+
+        const hab = gridData.find(h => h.habitacion.id_habitacion === tempSelect.roomId);
+        if (!hab) return;
+
+        setSelecciones(prev => [
+            ...prev,
+            {
+                idHabitacion: tempSelect.roomId,
+                fechaDesde: tempSelect.start,
+                fechaHasta: tempSelect.end,
+                numero: hab.habitacion.numero
+            }
+        ]);
+
+        setTempSelect({ start: null, end: null, roomId: null });
+        setPanelOpen(true);
     };
 
+    // Quitar una selección
+    const eliminarSeleccion = (index: number) => {
+        setSelecciones(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // Marcar celdas ya seleccionadas en celeste
+    const isFinalSelected = (roomId: string, dateStr: string) => {
+        return selecciones.some(sel =>
+            sel.idHabitacion === roomId &&
+            new Date(dateStr) >= new Date(sel.fechaDesde) &&
+            new Date(dateStr) <= new Date(sel.fechaHasta)
+        );
+    };
+
+    // =====================================================================
+    // ========================== CONFIRMAR RESERVA =========================
+    // =====================================================================
     const handleConfirmarReserva = async () => {
         if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
-            alert("Por favor complete todos los campos del huésped.");
+            alert("Complete todos los campos del huésped");
             return;
         }
+
+        const payload = {
+            nombreCliente: guestData.nombre,
+            apellidoCliente: guestData.apellido,
+            telefonoCliente: guestData.telefono,
+            reservas: selecciones.map(s => ({
+                idHabitacion: s.idHabitacion,
+                fechaDesde: s.fechaDesde,
+                fechaHasta: s.fechaHasta
+            }))
+        };
+
         try {
-            const payload = {
-                nombreCliente: guestData.nombre,
-                apellidoCliente: guestData.apellido,
-                telefonoCliente: guestData.telefono,
-                fechaIngreso: seleccionRango.start,
-                fechaEgreso: seleccionRango.end,
-                idsHabitaciones: [seleccionRango.roomId]
-            };
             const res = await fetch("http://localhost:8080/Reserva/Crear", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
+
             if (res.ok) {
-                alert("¡Reserva creada con éxito!");
+                alert("¡Reserva creada!");
+                setSelecciones([]);
+                setTempSelect({ start: null, end: null, roomId: null });
                 setModalOpen(false);
-                const ev = { preventDefault: () => {} } as React.FormEvent;
-                handleBuscar(ev);
-                setSeleccionRango({ start: null, end: null, roomId: null });
+                setPanelOpen(false);
                 setGuestData({ nombre: "", apellido: "", telefono: "" });
+
+                const ev = { preventDefault() {} } as React.FormEvent;
+                handleBuscar(ev);
             } else {
-                alert("Error al crear reserva en el servidor.");
+                alert("Error al reservar.");
             }
         } catch (e) {
-            console.error(e);
-            alert("Error de conexión con el servidor.");
+            alert("Error de conexión");
         }
     };
 
-    // --- RENDER ---
+    // =====================================================================
+    // ============================== RENDER ================================
+    // =====================================================================
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-            {/* HEADER TARJETA */}
+            {/* =================== HEADER =================== */}
             <div className="bg-white p-6 rounded-xl border border-rose-100 shadow-sm">
                 <div className="flex items-center gap-2 mb-6 border-b border-rose-100 pb-4">
                     <div className="p-2 bg-rose-100 rounded-lg">
@@ -181,138 +244,202 @@ export function RoomManagement() {
                     </div>
                     <div>
                         <h2 className="text-lg font-semibold text-rose-950">Consultar Disponibilidad</h2>
-                        <p className="text-sm text-gray-500">Seleccione un rango de fechas para ver el estado de las habitaciones.</p>
+                        <p className="text-sm text-gray-500">Seleccione un rango de fechas.</p>
                     </div>
                 </div>
 
                 <form onSubmit={handleBuscar} className="flex flex-col sm:flex-row gap-4 items-end">
-                    <div className="w-full sm:w-1/3 space-y-1.5">
-                        <label className="text-sm font-medium text-gray-700">Desde fecha</label>
-                        <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} required className="bg-white focus-visible:ring-rose-400" />
+                    <div className="w-full sm:w-1/3">
+                        <label className="text-sm font-medium text-gray-700">Desde</label>
+                        <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} required />
                     </div>
-                    <div className="w-full sm:w-1/3 space-y-1.5">
-                        <label className="text-sm font-medium text-gray-700">Hasta fecha</label>
-                        <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} required className="bg-white focus-visible:ring-rose-400" />
+                    <div className="w-full sm:w-1/3">
+                        <label className="text-sm font-medium text-gray-700">Hasta</label>
+                        <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} required />
                     </div>
-                    <Button type="submit" className="w-full sm:w-auto bg-rose-900 hover:bg-rose-800 text-white gap-2 min-w-[120px]" disabled={loading}>
+
+                    <Button className="bg-rose-900 text-white hover:bg-rose-800" disabled={loading}>
                         <Search className="h-4 w-4" />
                         {loading ? "Buscando..." : "Buscar"}
                     </Button>
                 </form>
             </div>
 
-            {/* GRILLA DE RESULTADOS */}
+            {/* =================== GRILLA =================== */}
             {searched && (
-                <Card className="border-rose-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                <Card className="border-rose-100 shadow-sm overflow-hidden">
+
+                    {/* ---------------- Panel superior ---------------- */}
                     <div className="p-4 border-b border-rose-100 bg-rose-50/30 flex justify-between items-center">
                         <h3 className="font-semibold text-rose-950 flex items-center gap-2">
                             <Bed className="h-4 w-4" /> Estado de Habitaciones
                         </h3>
 
-                        {seleccionRango.start && seleccionRango.end && (
-                            <div className="flex items-center gap-3 animate-in slide-in-from-right-4">
-                                <span className="text-xs font-medium text-rose-800 bg-rose-100 px-2 py-1 rounded-md hidden sm:inline-block">
-                                    {formatearFecha(seleccionRango.start)} - {formatearFecha(seleccionRango.end)}
-                                </span>
-                                <Button onClick={handleIniciarReserva} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Reservar Selección
-                                </Button>
-                            </div>
-                        )}
+                        <Button
+                            onClick={() => setPanelOpen(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2"
+                        >
+                            Reservas Seleccionadas ({selecciones.length})
+                        </Button>
                     </div>
 
                     <div className="overflow-x-auto">
                         {loading ? (
-                            <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center gap-2">
-                                <div className="w-6 h-6 border-2 border-rose-900 border-t-transparent rounded-full animate-spin"></div>
-                                <p>Cargando disponibilidad...</p>
-                            </div>
+                            <div className="p-12 text-center text-gray-500">Cargando...</div>
                         ) : gridData.length > 0 ? (
-                            <table className="w-full text-xs text-center border-collapse border-spacing-0">
+                            <table className="w-full text-xs text-center border-collapse">
                                 <thead>
                                 <tr>
-                                    <th className="p-3 text-left bg-gray-50/80 border-b text-gray-600 font-medium min-w-[140px] sticky left-0 z-10 backdrop-blur-sm shadow-[1px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                    <th className="p-3 text-left bg-gray-50 border-b text-gray-600 font-medium sticky left-0 z-10">
                                         Habitación
                                     </th>
                                     {gridData[0].disponibilidad.map((d, i) => (
-                                        <th key={i} className="p-2 border-b border-r border-gray-100 bg-gray-50/80 min-w-[45px] text-gray-600 font-medium">
+                                        <th key={i} className="p-2 border-b bg-gray-50 text-gray-600 font-medium">
                                             {formatearFecha(d.fecha)}
                                         </th>
                                     ))}
                                 </tr>
                                 </thead>
+
                                 <tbody>
-                                {gridData.map((row) => (
-                                    <tr key={row.habitacion.id_habitacion} className="group hover:bg-gray-50/30 transition-colors">
-                                        <td className="p-3 text-left border-r border-b border-gray-100 font-medium text-gray-700 sticky left-0 bg-white group-hover:bg-gray-50/30 z-10 shadow-[1px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                            <div className="text-sm text-rose-950 font-semibold">Hab {row.habitacion.numero}</div>
+                                {gridData.map(row => (
+                                    <tr key={row.habitacion.id_habitacion}>
+                                        <td className="p-3 text-left bg-white sticky left-0 border-r border-b text-gray-700">
+                                            <div className="font-semibold text-rose-950">Hab {row.habitacion.numero}</div>
                                             <div className="text-xs text-gray-400">{row.habitacion.tipoHabitacion}</div>
                                         </td>
+
                                         {row.disponibilidad.map((dia, idx) => {
-                                            const selected = isSelected(row.habitacion.id_habitacion, dia.fecha);
+                                            const temp = isTempSelected(row.habitacion.id_habitacion, dia.fecha);
+                                            const finalSel = isFinalSelected(row.habitacion.id_habitacion, dia.fecha);
 
-                                            // =========================================================
-                                            // LÓGICA DE COLORES SEGÚN TU REQUERIMIENTO
-                                            // =========================================================
-
-                                            // 1. DISPONIBLE (Default) -> VERDE
-                                            let bgColor = "bg-green-100 hover:bg-green-200 cursor-pointer text-green-800";
+                                            let bgColor = "bg-green-100 text-green-800";
                                             let content = "Libre";
-                                            let borderClass = "border-b border-r border-white";
 
-                                            // 2. OCUPADA / MANTENIMIENTO -> ROJO
                                             if (dia.estado === "OCUPADA") {
-                                                bgColor = "bg-red-100 hover:bg-red-200 text-red-800 cursor-not-allowed";
+                                                bgColor = "bg-red-100 text-red-700";
                                                 content = "Ocu";
                                             } else if (dia.estado === "MANTENIMIENTO") {
-                                                // Mantenimiento suele tratarse como bloqueo/ocupado, así que rojo o gris oscuro.
-                                                bgColor = "bg-gray-200 text-gray-600 cursor-not-allowed";
+                                                bgColor = "bg-gray-200 text-gray-600";
                                                 content = "Mant";
-                                            }
-                                            // 3. RESERVADA -> AMARILLO
-                                            else if (dia.estado === "RESERVADA") {
-                                                bgColor = "bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium cursor-pointer";
+                                            } else if (dia.estado === "RESERVADA") {
+                                                bgColor = "bg-yellow-100 text-yellow-800";
                                                 content = "Res";
                                             }
 
-                                            // 4. SELECCIÓN -> AZUL / CELESTE (Gana sobre todo)
-                                            if (selected) {
-                                                bgColor = "bg-blue-500 text-white hover:bg-blue-600 font-bold shadow-md scale-[1.05] z-20 transform transition-transform";
-                                                content = "✓";
-                                                borderClass = "border-b border-r border-blue-600 rounded-sm";
+                                            if (finalSel) {
+                                                bgColor = "bg-blue-200 text-blue-900 font-semibold";
+                                                content = "Sel";
                                             }
+
+                                            if (temp) {
+                                                bgColor = "bg-blue-500 text-white font-bold";
+                                                content = "✓";
+                                            }
+
+                                            const clickable = dia.estado !== "OCUPADA" && dia.estado !== "MANTENIMIENTO";
 
                                             return (
                                                 <td
                                                     key={idx}
-                                                    className={`p-1 transition-all duration-150 text-[10px] ${bgColor} ${borderClass}`}
-                                                    onClick={() => handleCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado)}
-                                                    title={`${dia.estado} - ${dia.fecha}`}
+                                                    onClick={() =>
+                                                        clickable &&
+                                                        handleCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero)
+                                                    }
+                                                    className={`p-1 border-b border-r cursor-pointer transition ${bgColor}`}
                                                 >
-                                                    <div className="flex items-center justify-center h-full w-full min-h-[30px]">
-                                                        {content}
-                                                    </div>
+                                                    {content}
                                                 </td>
                                             );
                                         })}
+
                                     </tr>
                                 ))}
                                 </tbody>
                             </table>
                         ) : (
-                            <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center gap-3">
-                                <div className="p-3 bg-gray-100 rounded-full">
-                                    <AlertCircle className="h-6 w-6 text-gray-400" />
-                                </div>
-                                <p>No hay habitaciones disponibles para mostrar en este rango.</p>
-                            </div>
+                            <div className="p-12 text-center text-gray-500">No hay datos.</div>
                         )}
                     </div>
                 </Card>
             )}
 
-            {/* MODAL DE CONFIRMACIÓN */}
+            {/* ================================================================== */}
+            {/* ============================ SLIDE-OVER ============================ */}
+            {/* ================================================================== */}
+            {panelOpen && (
+                <div className="fixed inset-0 z-40 flex">
+                    {/* Overlay */}
+                    <div
+                        className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                        onClick={() => setPanelOpen(false)}
+                    />
+
+                    {/* Panel RIGHT (35% ancho) */}
+                    <div className="ml-auto h-full w-[35%] bg-white shadow-xl border-l border-rose-100 p-6 animate-in slide-in-from-right duration-300 overflow-y-auto relative z-50">
+
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-lg font-semibold text-rose-950">
+                                Selecciones de Reserva
+                            </h2>
+                            <button onClick={() => setPanelOpen(false)}>
+                                <X className="h-5 w-5 text-gray-500 hover:text-gray-700" />
+                            </button>
+                        </div>
+
+                        {/* Mostrar lista */}
+                        {selecciones.length === 0 ? (
+                            <p className="text-gray-500 text-sm">No hay selecciones aún.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {selecciones.map((sel, i) => (
+                                    <div
+                                        key={i}
+                                        className="border border-rose-100 rounded-lg p-3 bg-rose-50/40 shadow-sm flex justify-between"
+                                    >
+                                        <div>
+                                            <div className="font-semibold text-rose-900">
+                                                Habitación {sel.numero}
+                                            </div>
+                                            <div className="text-xs text-gray-600">
+                                                {formatearFecha(sel.fechaDesde)} → {formatearFecha(sel.fechaHasta)}
+                                            </div>
+                                        </div>
+
+                                        <button onClick={() => eliminarSeleccion(i)}>
+                                            <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Botón para agregar la selección temporal */}
+                        {tempSelect.start && tempSelect.end && (
+                            <Button
+                                onClick={agregarSeleccion}
+                                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                                Añadir esta selección
+                            </Button>
+                        )}
+
+                        {/* Botón confirmar */}
+                        {selecciones.length > 0 && (
+                            <Button
+                                onClick={() => setModalOpen(true)}
+                                className="w-full mt-4 bg-rose-900 hover:bg-rose-800 text-white shadow"
+                            >
+                                Confirmar Reserva ({selecciones.length})
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ================================================================== */}
+            {/* ========================== MODAL FINAL ============================ */}
+            {/* ================================================================== */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="sm:max-w-md border-rose-100">
                     <DialogHeader>
@@ -321,71 +448,40 @@ export function RoomManagement() {
                             Confirmar Reserva
                         </DialogTitle>
                         <DialogDescription>
-                            Complete los datos del huésped para finalizar.
+                            Complete los datos del huésped.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="bg-rose-50/50 p-4 rounded-lg border border-rose-100 space-y-2 text-sm mb-2">
-                        <div className="flex justify-between">
-                            <span className="text-gray-500">Check-in:</span>
-                            <span className="font-medium text-rose-950">{seleccionRango.start && formatearFecha(seleccionRango.start)} (12:00hs)</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-500">Check-out:</span>
-                            <span className="font-medium text-rose-950">{seleccionRango.end && formatearFecha(seleccionRango.end)} (10:00hs)</span>
-                        </div>
-                        {seleccionRango.roomId && (
-                            <div className="flex justify-between border-t border-rose-200/50 pt-2 mt-2">
-                                <span className="text-gray-500">Habitación:</span>
-                                <span className="font-medium text-rose-950">
-                                    N° {gridData.find(g => g.habitacion.id_habitacion === seleccionRango.roomId)?.habitacion.numero}
-                                </span>
-                            </div>
-                        )}
+                    {/* Datos huésped */}
+                    <div className="space-y-4">
+                        <Input
+                            placeholder="Nombre"
+                            value={guestData.nombre}
+                            onChange={e => setGuestData({ ...guestData, nombre: e.target.value })}
+                        />
+                        <Input
+                            placeholder="Apellido"
+                            value={guestData.apellido}
+                            onChange={e => setGuestData({ ...guestData, apellido: e.target.value })}
+                        />
+                        <Input
+                            placeholder="Teléfono"
+                            value={guestData.telefono}
+                            onChange={e => setGuestData({ ...guestData, telefono: e.target.value })}
+                        />
                     </div>
 
-                    <div className="space-y-4 py-2">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-gray-600">Nombre *</label>
-                                <Input
-                                    value={guestData.nombre}
-                                    onChange={e => setGuestData({...guestData, nombre: e.target.value})}
-                                    className="h-9 bg-white focus-visible:ring-rose-400"
-                                    placeholder="Ej: Juan"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-gray-600">Apellido *</label>
-                                <Input
-                                    value={guestData.apellido}
-                                    onChange={e => setGuestData({...guestData, apellido: e.target.value})}
-                                    className="h-9 bg-white focus-visible:ring-rose-400"
-                                    placeholder="Ej: Pérez"
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-600">Teléfono *</label>
-                            <Input
-                                value={guestData.telefono}
-                                onChange={e => setGuestData({...guestData, telefono: e.target.value})}
-                                className="h-9 bg-white focus-visible:ring-rose-400"
-                                placeholder="+54 11 ..."
-                            />
-                        </div>
-                    </div>
-
-                    <DialogFooter className="flex gap-2 sm:justify-end pt-2">
-                        <Button variant="outline" onClick={() => setModalOpen(false)} className="h-9 border-rose-200 text-rose-900 hover:bg-rose-50">
+                    <DialogFooter className="pt-4">
+                        <Button variant="outline" onClick={() => setModalOpen(false)}>
                             Cancelar
                         </Button>
-                        <Button onClick={handleConfirmarReserva} className="bg-rose-900 hover:bg-rose-800 text-white h-9">
-                            Confirmar Reserva
+                        <Button onClick={handleConfirmarReserva} className="bg-rose-900 text-white">
+                            Confirmar
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
         </div>
     );
 }
