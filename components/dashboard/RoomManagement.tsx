@@ -115,26 +115,34 @@ export function RoomManagement() {
     // ========================= SELECCIÓN DE RANGOS ========================
     // =====================================================================
     const handleCellClick = (roomId: string, dateStr: string, estado: string, numero: number) => {
-        if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
+    // 🚫 No permitir click en OCUPADA / MANTENIMIENTO / RESERVADA
+    if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
-        if (!tempSelect.start) {
-            setTempSelect({ start: dateStr, end: null, roomId });
-        } else if (tempSelect.start && !tempSelect.end) {
-            const start = tempSelect.start;
-            let from = start;
-            let to = dateStr;
+    if (estado === "RESERVADA") {
+        alert(`La habitación ${numero} ya está reservada en esa fecha. No es posible seleccionarla.`);
+        return;
+    }
 
-            if (new Date(dateStr) < new Date(start)) {
-                from = dateStr;
-                to = start;
-            }
+    // ✅ Lógica normal de selección de rango
+    if (!tempSelect.start) {
+        setTempSelect({ start: dateStr, end: null, roomId });
+    } else if (tempSelect.start && !tempSelect.end) {
+        const start = tempSelect.start;
+        let from = start;
+        let to = dateStr;
 
-            setTempSelect({ start: from, end: to, roomId });
-        } else {
-            // reiniciar selección
-            setTempSelect({ start: dateStr, end: null, roomId });
+        if (new Date(dateStr) < new Date(start)) {
+            from = dateStr;
+            to = start;
         }
+
+        setTempSelect({ start: from, end: to, roomId });
+    } else {
+        // reiniciar selección
+        setTempSelect({ start: dateStr, end: null, roomId });
+    }
     };
+
 
     const isTempSelected = (roomId: string, dateStr: string) => {
         if (tempSelect.roomId !== roomId) return false;
@@ -337,20 +345,31 @@ export function RoomManagement() {
                                                 content = "✓";
                                             }
 
-                                            const clickable = dia.estado !== "OCUPADA" && dia.estado !== "MANTENIMIENTO";
+                                            const clickable =
+                                                    dia.estado !== "OCUPADA" &&
+                                                    dia.estado !== "MANTENIMIENTO" &&
+                                                    dia.estado !== "RESERVADA";      // 👈 también bloqueamos RESERVADA
+
+                                            const cursorClass = clickable ? "cursor-pointer" : "cursor-not-allowed";
 
                                             return (
                                                 <td
                                                     key={idx}
                                                     onClick={() =>
                                                         clickable &&
-                                                        handleCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero)
+                                                        handleCellClick(
+                                                                row.habitacion.id_habitacion,
+                                                                dia.fecha,
+                                                                dia.estado,
+                                                                row.habitacion.numero
+                                                        )
                                                     }
-                                                    className={`p-1 border-b border-r cursor-pointer transition ${bgColor}`}
+                                                    className={`p-1 border-b border-r transition ${bgColor} ${cursorClass}`}
                                                 >
                                                     {content}
                                                 </td>
                                             );
+
                                         })}
 
                                     </tr>
