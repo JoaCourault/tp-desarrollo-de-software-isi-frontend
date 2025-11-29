@@ -50,32 +50,42 @@ export default function LoginPage() {
         }
     }, [router]);
 
-    const onSubmit = async (values: z.infer<typeof formSchema>) => {
-        setLoading(true);
-        setErrorMensaje("");
+    const [authPending, setAuthPending] = useState(false);
 
-        try {
-            // 2. Tu llamada a la API real
-            const response: AutenticarUsuarioResponseDto = await usuarioApi.login(values.nombre, values.apellido, values.password);
-            console.log("RESPUESTA LOGIN:", response);
+const onSubmit = async (values) => {
+    setLoading(true);
+    setErrorMensaje("");
 
-            if (response?.usuario?.idUsuario) {
-                // Guardar usuario en LocalStorage
-                localStorage.setItem("usuarioLogueado", JSON.stringify(response.usuario));
+    try {
+        const response = await usuarioApi.login(
+            values.nombre,
+            values.apellido,
+            values.password
+        );
 
-                // 3. CAMBIO CLAVE: Redirigir al nuevo Dashboard unificado
-                router.push("/dashboard");
-            } else {
-                setErrorMensaje("Credenciales incorrectas.");
-            }
+        if (response?.usuario?.idUsuario) {
+            localStorage.setItem("usuarioLogueado", JSON.stringify(response.usuario));
 
-        } catch (e) {
-            console.error(e);
-            setErrorMensaje("Error de conexión o datos inválidos.");
+            setAuthPending(true); // activar escritura de cookie segura
+        } else {
+            setErrorMensaje("Credenciales incorrectas.");
         }
+    } catch (e) {
+        console.error(e);
+        setErrorMensaje("Error de conexión o datos inválidos.");
+    }
 
-        setLoading(false);
-    };
+    setLoading(false);
+};
+
+// Ejecutar cookie + redirección SOLO en cliente
+useEffect(() => {
+    if (authPending) {
+        document.cookie = `auth=true; path=/`;
+        router.push("/dashboard");
+    }
+}, [authPending, router]);
+
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-rose-50/50 px-4 font-sans">

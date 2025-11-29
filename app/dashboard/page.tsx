@@ -39,6 +39,7 @@ export default function DashboardPage() {
 
                         <Button variant="outline" onClick={() => {
                             localStorage.removeItem("usuarioLogueado");
+                            document.cookie = "auth=; path=/; max-age=0";
                             router.push("/");
                         }}>
                             <LogOut className="w-4 h-4 mr-2" /> Cerrar Sesión

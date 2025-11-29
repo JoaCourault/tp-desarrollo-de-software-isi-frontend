@@ -7,9 +7,11 @@ import ModalAlert from "@/components/modalAlert/modalAlert";
 
 import { HuespedApi } from "@/src/api/huesped.api";
 import { AltaHuespedRequestDTO } from "@/src/dto/Huesped/AltaHuespedRequest.dto";
+import { useRouter } from "next/navigation"; // 👈 NUEVO
 
 export default function AltaHuesped() {
     const api = new HuespedApi();
+    const router = useRouter(); // 👈 NUEVO
 
     // MODAL STATES
     const [modalOpen, setModalOpen] = useState(false);
@@ -85,8 +87,7 @@ export default function AltaHuesped() {
     };
 
     const handleCancelar = () => {
-        const form = document.getElementById("formAltaHuesped") as HTMLFormElement | null;
-        if (form) form.reset();
+        router.push("/dashboard");
     };
 
     return (
@@ -316,9 +317,17 @@ export default function AltaHuesped() {
                 title={modalTitle}
                 message={modalMessage}
                 type={modalType}
-                onOk={() => setModalOpen(false)}
                 okText="Aceptar"
-            />
+                onOk={() => {
+                    setModalOpen(false);
+
+        // 👉 Si el huésped se creó OK, redirigir al dashboard
+        if (modalType === "success") {
+            window.location.href = "/dashboard";
+        }
+    }}
+/>
+
         </>
     );
 }
