@@ -165,15 +165,20 @@ export function RoomManagement() {
         const hab = gridData.find(h => h.habitacion.id_habitacion === tempSelect.roomId);
         if (!hab) return;
 
-        setSelecciones(prev => [
-            ...prev,
-            {
-                idHabitacion: tempSelect.roomId,
-                fechaDesde: tempSelect.start,
-                fechaHasta: tempSelect.end,
-                numero: hab.habitacion.numero
+        setSelecciones(prev => {
+            if (tempSelect.roomId === null) {
+                return prev; // No hacer nada si roomId es null
             }
-        ]);
+            return [
+                ...prev,
+                {
+                    idHabitacion: tempSelect.roomId, // Ahora sabemos que roomId no es null
+                    fechaDesde: tempSelect.start,
+                    fechaHasta: tempSelect.end,
+                    numero: hab.habitacion.numero
+                }
+            ];
+        });
 
         setTempSelect({ start: null, end: null, roomId: null });
         setPanelOpen(true);

@@ -1,35 +1,27 @@
-import { Service } from "../service";
-import { AltaHuespedRequestDTO, HuespedDTO } from "../dto/Huesped/AltaHuespedRequest.dto";
-import { AltaHuespedResultDTO } from "@/src/dto/Huesped/AltaHuespedResult.dto";
-import { BuscarHuespedRequestDTO } from "@/src/dto/Huesped/BuscarHuespedRequest.dto";
-import { BuscarHuespedResultDTO } from "@/src/dto/Huesped/BuscarHuespedResult.dto";
+// src/api/huesped.api.ts
 
-export interface AltaHuespedResponse {
-    resultado: {
-        id: number;
-        mensaje: string;
-    };
-    huesped: HuespedDTO | null;
-}
+const BASE = "http://localhost:8080/Huesped";
 
 export class HuespedApi {
-    private basePath = "/Huesped";
+    async alta(payload: any) {
+        const res = await fetch(`${BASE}/Alta`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
 
-    public async alta(payload: AltaHuespedRequestDTO): Promise<AltaHuespedResultDTO> {
-        return await Service.post<AltaHuespedRequestDTO, AltaHuespedResultDTO>(
-            `${this.basePath}/Alta`,
-            payload
-        );
+        return await res.json();
     }
 
-    public async buscar(
-        payload: BuscarHuespedRequestDTO
-    ): Promise<BuscarHuespedResultDTO> {
-        return await Service.post<BuscarHuespedRequestDTO, BuscarHuespedResultDTO>(
-            `${this.basePath}/Buscar`,
-            payload
-        );
+    async buscar(payload: any) {
+        const res = await fetch(`${BASE}/Buscar`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        return await res.json();
     }
-
-
 }
+
+export const huespedApi = new HuespedApi();
