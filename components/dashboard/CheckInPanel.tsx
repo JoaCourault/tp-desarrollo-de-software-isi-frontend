@@ -24,10 +24,7 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-// ========================================================================
 // TYPES
-// ========================================================================
-
 interface HabitacionDTO {
     id_habitacion: string;
     numero: number;
@@ -61,9 +58,8 @@ interface Huesped {
     tipoDocumento?: { tipoDocumento: string };
 }
 
-// ========================================================================
+
 // COMPONENTE PRINCIPAL
-// ========================================================================
 export default function CheckInPanel() {
 
     // --- ESTADOS DE FLUJO ---
@@ -86,11 +82,11 @@ export default function CheckInPanel() {
     const [selecciones, setSelecciones] = useState<SeleccionCheckIn[]>([]);
     const [panelOpen, setPanelOpen] = useState(false);
 
-    // --- ESTADOS CONFLICTO ---
+    // ESTADOS CONFLICTO
     const [modalConflicto, setModalConflicto] = useState(false);
     const [conflictDetails, setConflictDetails] = useState<DisponibilidadDia[]>([]);
 
-    // --- ESTADOS HUESPEDES ---
+    // ESTADOS HUESPEDES
     const [searchApellido, setSearchApellido] = useState("");
     const [searchNombre, setSearchNombre] = useState("");
     const [searchDocumento, setSearchDocumento] = useState("");
@@ -111,9 +107,8 @@ export default function CheckInPanel() {
         return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit" }).format(date);
     };
 
-    // =====================================================================
+
     // 1. LÓGICA DE GRILLA Y BÚSQUEDA
-    // =====================================================================
 
     const handleBuscarDisponibilidad = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -134,7 +129,7 @@ export default function CheckInPanel() {
     };
 
     const handleCellClick = (roomId: string, dateStr: string, estado: string) => {
-        // Bloqueo estricto para OCUPADA y MANTENIMIENTO
+
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
         if (!tempSelect.start) {
@@ -174,9 +169,6 @@ export default function CheckInPanel() {
         );
     };
 
-    // =====================================================================
-    // 2. LÓGICA DE AGREGAR (CON REGLAS DE NEGOCIO 1, 2 y 3)
-    // =====================================================================
 
     const intentarAgregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
@@ -197,13 +189,13 @@ export default function CheckInPanel() {
         const tieneDisponibles = diasRango.some(d => d.estado === "DISPONIBLE");
         const tieneBloqueos = diasRango.some(d => d.estado === "OCUPADA" || d.estado === "MANTENIMIENTO");
 
-        // Seguridad adicional por si se coló algún click indebido
+
         if (tieneBloqueos) {
             alert("El rango seleccionado contiene días bloqueados (Ocupado o Mantenimiento).");
             return;
         }
 
-        // --- REGLA 3: MIXTO (Disponible + Reservado) -> AVISO ---
+        // MIXTO (Disponible + Reservado)
         if (tieneReservas && tieneDisponibles) {
             const conflictos = diasRango.filter(d => d.estado === "RESERVADA");
             setConflictDetails(conflictos);
@@ -211,13 +203,13 @@ export default function CheckInPanel() {
             return;
         }
 
-        // --- REGLA 1: TODAS DISPONIBLES -> FLUJO NORMAL ---
+        // TODAS DISPONIBLES
         if (tieneDisponibles && !tieneReservas) {
             confirmarAgregar(false);
             return;
         }
 
-        // --- REGLA 2: TODAS RESERVADAS -> FLUJO NORMAL ---
+        //TODAS RESERVADAS
         if (!tieneDisponibles && tieneReservas) {
             // Asumimos que es el check-in de la reserva existente
             confirmarAgregar(true);
@@ -251,9 +243,8 @@ export default function CheckInPanel() {
         setSelecciones(prev => prev.filter((_, i) => i !== index));
     };
 
-    // =====================================================================
+
     // 3. LÓGICA DE HUÉSPEDES Y FINALIZACIÓN
-    // =====================================================================
 
     const buscarHuesped = async () => {
         try {
@@ -315,9 +306,7 @@ export default function CheckInPanel() {
         }
     };
 
-    // =====================================================================
     // RENDER
-    // =====================================================================
 
     const renderGrilla = () => (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -468,12 +457,8 @@ export default function CheckInPanel() {
                                 {/* 1. BOTÓN TITULAR */}
                                 <Button
                                     size="sm"
-                                    // Si es titular usa variant default, sino outline
                                     variant={titular === h.idHuesped ? "default" : "outline"}
 
-                                    // --- AQUÍ CAMBIAS EL COLOR DEL TITULAR ---
-                                    // Actualmente es VERDE (bg-green-600).
-                                    // Puedes cambiarlo por: bg-blue-600, bg-purple-600, bg-orange-500, etc.
                                     className={titular === h.idHuesped ? "bg-green-600 hover:bg-green-700" : ""}
 
                                     onClick={() => setTitular(h.idHuesped)}
@@ -486,9 +471,7 @@ export default function CheckInPanel() {
                                     size="sm"
                                     variant={acompanantes.includes(h.idHuesped) ? "default" : "outline"}
 
-                                    // --- AQUÍ AGREGAS EL COLOR PARA ACOMPAÑANTE ---
-                                    // Actualmente no tiene color explícito (usa el default negro/gris del tema).
-                                    // Agrega esta línea para ponerlo AZUL, por ejemplo:
+
                                     className={acompanantes.includes(h.idHuesped) ? "bg-blue-600 hover:bg-blue-700" : ""}
 
                                     onClick={() => {
@@ -562,7 +545,7 @@ export default function CheckInPanel() {
                 </div>
             )}
 
-            {/* MODAL DE CONFLICTO (REQUISITO 3) - SIN NOMBRES */}
+            {/* (REQUISITO 3) - SIN NOMBRES */}
             <Dialog open={modalConflicto} onOpenChange={setModalConflicto}>
                 <DialogContent>
                     <DialogHeader>

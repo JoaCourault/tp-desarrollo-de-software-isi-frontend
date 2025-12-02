@@ -23,7 +23,7 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-// === Tipos ===
+//Tipos
 interface HabitacionDTO {
     id_habitacion: string;
     numero: number;
@@ -41,7 +41,7 @@ interface HabitacionDisponibilidad {
     disponibilidad: DisponibilidadDia[];
 }
 
-// === NUEVO Tipo para las múltiples selecciones ===
+
 interface Seleccion {
     idHabitacion: string;
     fechaDesde: string;
@@ -49,9 +49,8 @@ interface Seleccion {
     numero: number;
 }
 
-// ========================================================================
-// ========================== COMPONENTE PRINCIPAL =========================
-// ========================================================================
+//COMPONENTE PRINCIPAL
+
 export function RoomManagement() {
 
     // Estados de búsqueda
@@ -68,7 +67,7 @@ export function RoomManagement() {
         roomId: string | null
     }>({ start: null, end: null, roomId: null });
 
-    // === NUEVO === Lista de reservas acumuladas
+    // Lista de reservas acumuladas
     const [selecciones, setSelecciones] = useState<Seleccion[]>([]);
 
     // Modal final de confirmación
@@ -84,9 +83,8 @@ export function RoomManagement() {
         return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit" }).format(date);
     };
 
-    // =====================================================================
-    // ========================== BUSCAR DISPONIBILIDAD =====================
-    // =====================================================================
+    // BUSCAR DISPONIBILIDAD
+
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -111,9 +109,8 @@ export function RoomManagement() {
         }
     };
 
-    // =====================================================================
-    // ========================= SELECCIÓN DE RANGOS ========================
-    // =====================================================================
+
+    // SELECCIÓN DE RANGOS
     const handleCellClick = (roomId: string, dateStr: string, estado: string, numero: number) => {
     // 🚫 No permitir click en OCUPADA / MANTENIMIENTO / RESERVADA
     if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
@@ -123,7 +120,7 @@ export function RoomManagement() {
         return;
     }
 
-    // ✅ Lógica normal de selección de rango
+
     if (!tempSelect.start) {
         setTempSelect({ start: dateStr, end: null, roomId });
     } else if (tempSelect.start && !tempSelect.end) {
@@ -156,9 +153,9 @@ export function RoomManagement() {
         return d >= start && d <= end;
     };
 
-    // =====================================================================
-    // =========================== AÑADIR RESERVA ===========================
-    // =====================================================================
+
+    // AÑADIR RESERVA
+
     const agregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
 
@@ -198,9 +195,8 @@ export function RoomManagement() {
         );
     };
 
-    // =====================================================================
-    // ========================== CONFIRMAR RESERVA =========================
-    // =====================================================================
+
+    // CONFIRMAR RESERVA
     const handleConfirmarReserva = async () => {
         if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
             alert("Complete todos los campos del huésped");
@@ -243,13 +239,11 @@ export function RoomManagement() {
         }
     };
 
-    // =====================================================================
-    // ============================== RENDER ================================
-    // =====================================================================
+    //  RENDER
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-            {/* =================== HEADER =================== */}
+            {/*  HEADER */}
             <div className="bg-white p-6 rounded-xl border border-rose-100 shadow-sm">
                 <div className="flex items-center gap-2 mb-6 border-b border-rose-100 pb-4">
                     <div className="p-2 bg-rose-100 rounded-lg">
@@ -278,11 +272,11 @@ export function RoomManagement() {
                 </form>
             </div>
 
-            {/* =================== GRILLA =================== */}
+            {/* GRILLA  */}
             {searched && (
                 <Card className="border-rose-100 shadow-sm overflow-hidden">
 
-                    {/* ---------------- Panel superior ---------------- */}
+                    {/*  Panel superior */}
                     <div className="p-4 border-b border-rose-100 bg-rose-50/30 flex justify-between items-center">
                         <h3 className="font-semibold text-rose-950 flex items-center gap-2">
                             <Bed className="h-4 w-4" /> Estado de Habitaciones
@@ -388,9 +382,9 @@ export function RoomManagement() {
                 </Card>
             )}
 
-            {/* ================================================================== */}
-            {/* ============================ SLIDE-OVER ============================ */}
-            {/* ================================================================== */}
+
+            {/* SLIDE-OVER */}
+
             {panelOpen && (
                 <div className="fixed inset-0 z-40 flex">
                     {/* Overlay */}
@@ -399,7 +393,7 @@ export function RoomManagement() {
                         onClick={() => setPanelOpen(false)}
                     />
 
-                    {/* Panel RIGHT (35% ancho) */}
+                    {/* Panel RIGHT  */}
                     <div className="ml-auto h-full w-[35%] bg-white shadow-xl border-l border-rose-100 p-6 animate-in slide-in-from-right duration-300 overflow-y-auto relative z-50">
 
                         <div className="flex justify-between items-center mb-6">
@@ -461,9 +455,9 @@ export function RoomManagement() {
                 </div>
             )}
 
-            {/* ================================================================== */}
-            {/* ========================== MODAL FINAL ============================ */}
-            {/* ================================================================== */}
+
+            {/*  MODAL FINAL  */}
+
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="sm:max-w-md border-rose-100">
                     <DialogHeader>

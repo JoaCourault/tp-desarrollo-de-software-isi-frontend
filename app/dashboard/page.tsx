@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Hotel, LogOut, Users, Bed, CheckCircle } from "lucide-react";
-
-// Importamos los componentes que ya existen
 import { GuestManagement } from "@/components/dashboard/GuestManagement";
 import { RoomManagement } from "@/components/dashboard/RoomManagement";
 
@@ -15,7 +13,7 @@ import CheckInPanel from "@/components/dashboard/CheckInPanel";
 export default function DashboardPage() {
     const router = useRouter();
 
-    // Ahora agrego "checkin" como tercera pestaña
+
     const [activeTab, setActiveTab] = useState<"guests" | "rooms" | "checkin">("guests");
     const [isChecking, setIsChecking] = useState(true);
 

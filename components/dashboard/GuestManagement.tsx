@@ -1,7 +1,5 @@
 "use client";
 
-
-
 import { useState } from "react";
 
 import {
@@ -15,11 +13,6 @@ import {
 } from "lucide-react";
 
 
-
-// --- IMPORTS DE TU LÓGICA ---
-
-// Asegúrate de que estas rutas sean correctas en tu proyecto
-
 import { HuespedApi } from "@/src/api/huesped.api";
 
 import { HuespedDTO } from "@/src/dto/Huesped/Huesped.dto";
@@ -27,7 +20,6 @@ import { HuespedDTO } from "@/src/dto/Huesped/Huesped.dto";
 import { AltaHuespedRequestDTO } from "@/src/dto/Huesped/AltaHuespedRequest.dto";
 
 import { BuscarHuespedRequestDTO } from "@/src/dto/Huesped/BuscarHuespedRequest.dto";
-
 
 
 // --- COMPONENTES UI ---
@@ -40,11 +32,8 @@ import ModalAlert from "@/components/modalAlert/modalAlert";
 
 
 
-// =================================================================
-
 // COMPONENTE PRINCIPAL
 
-// =================================================================
 
 export function GuestManagement() {
 
@@ -92,9 +81,8 @@ export function GuestManagement() {
     );
 }
 
-// =================================================================
-// FORMULARIO DE ALTA (Corregido mapeo de CP -> codigoPostal)
-// =================================================================
+// FORMULARIO DE ALTA
+
 function AltaHuespedForm() {
     const api = new HuespedApi();
 
@@ -119,7 +107,6 @@ function AltaHuespedForm() {
         const form = e.currentTarget as HTMLFormElement;
         const data = new FormData(form);
 
-        // Validación extra de seguridad para CP y Número
         const cpVal = data.get("cp");
         const numVal = data.get("numero");
 
@@ -153,12 +140,7 @@ function AltaHuespedForm() {
                     numero: String(numVal), // Enviamos el número capturado
                     departamento: String(data.get("departamento") ?? ""),
                     piso: String(data.get("piso") ?? ""),
-
-                    // --- CORRECCIÓN CRÍTICA ---
-                    // El input se llama "cp", pero el Backend Java espera "codigoPostal".
                     codigoPostal: String(cpVal),
-                    // --------------------------
-
                     localidad: String(data.get("localidad") ?? ""),
                     provincia: String(data.get("provincia") ?? ""),
                     pais: String(data.get("pais") ?? ""),
@@ -350,9 +332,8 @@ function AltaHuespedForm() {
     );
 }
 
-// =================================================================
-// FORMULARIO DE BÚSQUEDA
-// =================================================================
+// FORMULARIO DE BUSQUEDA
+
 function BuscarHuespedForm() {
     const api = new HuespedApi();
     const [resultados, setResultados] = useState<HuespedDTO[]>([]);
