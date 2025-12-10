@@ -1,89 +1,49 @@
 "use client";
 
 import { useState } from "react";
-
 import {
-
     UserPlus,
-
     Users,
-
     Search as SearchIcon,
-
+    ArrowLeft, // Nuevo icono para volver
 } from "lucide-react";
 
-
 import { HuespedApi } from "@/src/api/huesped.api";
-
 import { HuespedDTO } from "@/src/dto/Huesped/Huesped.dto";
-
 import { AltaHuespedRequestDTO } from "@/src/dto/Huesped/AltaHuespedRequest.dto";
-
 import { BuscarHuespedRequestDTO } from "@/src/dto/Huesped/BuscarHuespedRequest.dto";
 
-
 // --- COMPONENTES UI ---
-
 import { Button } from "@/components/ui/button";
-
 import { Input } from "@/components/ui/input";
-
 import ModalAlert from "@/components/modalAlert/modalAlert";
 
-
-
 // COMPONENTE PRINCIPAL
-
-
 export function GuestManagement() {
-
-    const [activeTab, setActiveTab] = useState<"alta" | "buscar">("alta");
-
-
+    // El estado controla qué vista se muestra. Por defecto 'buscar'.
+    const [view, setView] = useState<"buscar" | "alta">("buscar");
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-            {/* SUB-NAVEGACIÓN */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                    type="button"
-                    onClick={() => setActiveTab("alta")}
-                    className={`flex flex-col items-center justify-center border rounded-lg py-4 px-4 text-sm sm:text-base transition-all duration-200 ${
-                        activeTab === "alta"
-                            ? "bg-rose-900 text-white border-rose-900 shadow-md ring-2 ring-rose-200 ring-offset-1"
-                            : "bg-white text-rose-900 hover:bg-rose-50 border-rose-100 hover:border-rose-200"
-                    }`}
-                >
-                    <UserPlus className={`h-5 w-5 mb-2 ${activeTab === "alta" ? "text-white" : "text-rose-700"}`} />
-                    <span className="font-medium">Dar Alta Huésped</span>
-                </button>
-
-                <button
-                    type="button"
-                    onClick={() => setActiveTab("buscar")}
-                    className={`flex flex-col items-center justify-center border rounded-lg py-4 px-4 text-sm sm:text-base transition-all duration-200 ${
-                        activeTab === "buscar"
-                            ? "bg-rose-900 text-white border-rose-900 shadow-md ring-2 ring-rose-200 ring-offset-1"
-                            : "bg-white text-rose-900 hover:bg-rose-50 border-rose-100 hover:border-rose-200"
-                    }`}
-                >
-                    <Users className={`h-5 w-5 mb-2 ${activeTab === "buscar" ? "text-white" : "text-rose-700"}`} />
-                    <span className="font-medium">Buscar Huésped</span>
-                </button>
-            </div>
-
-            {/* CONTENIDO */}
+            {/* CONTENIDO: Renderizado condicional basado en la vista actual */}
             <div className="bg-white rounded-xl border border-rose-100 shadow-sm overflow-hidden">
-                {activeTab === "alta" ? <AltaHuespedForm /> : <BuscarHuespedForm />}
+                {view === "buscar" ? (
+                    <BuscarHuespedForm onGoToCreate={() => setView("alta")} />
+                ) : (
+                    <AltaHuespedForm onBack={() => setView("buscar")} />
+                )}
             </div>
         </div>
     );
 }
 
-// FORMULARIO DE ALTA
+// --- FORMULARIO DE ALTA ---
 
-function AltaHuespedForm() {
+interface AltaHuespedFormProps {
+    onBack: () => void;
+}
+
+function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
     const api = new HuespedApi();
 
     const [modalOpen, setModalOpen] = useState(false);
@@ -137,7 +97,7 @@ function AltaHuespedForm() {
                 nacionalidad: String(data.get("nacionalidad") ?? ""),
                 direccion: {
                     calle: String(data.get("calle") ?? ""),
-                    numero: String(numVal), // Enviamos el número capturado
+                    numero: String(numVal),
                     departamento: String(data.get("departamento") ?? ""),
                     piso: String(data.get("piso") ?? ""),
                     codigoPostal: String(cpVal),
@@ -156,6 +116,7 @@ function AltaHuespedForm() {
             if (res.resultado.id === 0) {
                 showAlert("success", "Huésped creado", "El huésped fue cargado exitosamente.");
                 form.reset();
+                // Opcional: Podrías llamar a onBack() aquí si quieres volver a la búsqueda tras el éxito
             } else {
                 showAlert("error", "Error al crear huésped", res.resultado.mensaje);
             }
@@ -165,16 +126,22 @@ function AltaHuespedForm() {
         }
     };
 
-    const handleCancelar = () => {
-        const form = document.getElementById("formAltaHuesped") as HTMLFormElement | null;
-        if (form) form.reset();
-    };
-
     return (
         <>
-            <div className="border-b border-rose-100 px-6 py-4 bg-rose-50/30">
-                <h2 className="text-lg font-semibold text-rose-950">Formulario de Alta</h2>
-                <p className="text-sm text-gray-600">Ingrese los datos personales del nuevo huésped</p>
+            <div className="border-b border-rose-100 px-6 py-4 bg-rose-50/30 flex items-center gap-3">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onBack}
+                    className="hover:bg-rose-100 text-rose-900"
+                    type="button"
+                >
+                    <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <div>
+                    <h2 className="text-lg font-semibold text-rose-950">Formulario de Alta</h2>
+                    <p className="text-sm text-gray-600">Ingrese los datos personales del nuevo huésped</p>
+                </div>
             </div>
 
             <form id="formAltaHuesped" onSubmit={handleSubmit} className="px-6 py-6 space-y-6">
@@ -261,7 +228,6 @@ function AltaHuespedForm() {
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">CP *</label>
-                            {/* CP obligatorio y numérico */}
                             <Input name="cp" type="number" min={1} required placeholder="0000" className="bg-white" />
                         </div>
                         <div className="space-y-1.5">
@@ -311,8 +277,8 @@ function AltaHuespedForm() {
                 </div>
 
                 <div className="flex justify-end gap-3 pt-6 border-t border-rose-100 mt-6">
-                    <Button type="button" variant="outline" onClick={handleCancelar} className="text-rose-900 border-rose-200 hover:bg-rose-50">
-                        Limpiar
+                    <Button type="button" variant="outline" onClick={onBack} className="text-rose-900 border-rose-200 hover:bg-rose-50">
+                        Cancelar
                     </Button>
                     <Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white min-w-[120px]">
                         Guardar Huésped
@@ -332,9 +298,13 @@ function AltaHuespedForm() {
     );
 }
 
-// FORMULARIO DE BUSQUEDA
+// --- FORMULARIO DE BUSQUEDA ---
 
-function BuscarHuespedForm() {
+interface BuscarHuespedFormProps {
+    onGoToCreate: () => void;
+}
+
+function BuscarHuespedForm({ onGoToCreate }: BuscarHuespedFormProps) {
     const api = new HuespedApi();
     const [resultados, setResultados] = useState<HuespedDTO[]>([]);
     const [mensaje, setMensaje] = useState("");
@@ -399,7 +369,8 @@ function BuscarHuespedForm() {
                                 <option value="">Todos</option>
                                 <option value="DNI">DNI</option>
                                 <option value="Pasaporte">Pasaporte</option>
-                                <option value="LE / LC">LE / LC</option>
+                                <option value="LE">LE</option>
+                                <option value="LC">LC</option>
                             </select>
                         </div>
                         <div className="flex gap-2">
@@ -416,6 +387,7 @@ function BuscarHuespedForm() {
 
                 <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-rose-950 border-b border-rose-100 pb-2">Resultados ({resultados.length})</h3>
+
                     {resultados.length > 0 ? (
                         <div className="grid grid-cols-1 gap-3">
                             {resultados.map((h, i) => (
@@ -433,10 +405,25 @@ function BuscarHuespedForm() {
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                        <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                             {mensaje || "Ingrese filtros para buscar huéspedes"}
                         </div>
                     )}
+
+                    {/* SECCIÓN DE ALTA AL FINAL DE LOS RESULTADOS */}
+                    <div className="mt-8 pt-6 border-t border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-rose-50/30 p-4 rounded-lg">
+                        <div className="text-sm text-gray-600 text-center sm:text-left">
+                            <p className="font-medium text-rose-950">¿No encuentra al huésped?</p>
+                            <p>Puede registrar un nuevo huésped manualmente.</p>
+                        </div>
+                        <Button
+                            onClick={onGoToCreate}
+                            className="bg-white text-rose-900 border border-rose-200 hover:bg-rose-50 hover:border-rose-300 shadow-sm"
+                        >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Dar Alta Nuevo Huésped
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>

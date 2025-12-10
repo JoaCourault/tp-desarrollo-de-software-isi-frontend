@@ -2,19 +2,26 @@
 
 import { useState, useEffect } from "react";
 import {
-    CalendarRange,
     Search,
     Users,
     Bed,
-    CheckCircle2,
-    AlertCircle,
-    X,
+    CalendarDays,
+    ListChecks,
+    ArrowRight,
+    Clock,
+    UserCheck,
+    LogOut,
     Trash2,
-    ArrowLeft
+    Save,
+    AlertTriangle,
+    PlusCircle,
+    UserPlus,
+    CheckCircle2 // Nuevo icono para el éxito
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import {
     Dialog,
     DialogContent,
@@ -24,32 +31,13 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-// TYPES
-interface HabitacionDTO {
-    id_habitacion: string;
-    numero: number;
-    tipoHabitacion: string;
-    precio: number;
-}
+import {
+    GrillaDisponibilidad,
+    type HabitacionDisponibilidad,
+    type DisponibilidadDia
+} from "@/components/GrillaDisponibilidad";
 
-interface DisponibilidadDia {
-    fecha: string;
-    estado: "DISPONIBLE" | "OCUPADA" | "RESERVADA" | "MANTENIMIENTO";
-}
-
-interface HabitacionDisponibilidad {
-    habitacion: HabitacionDTO;
-    disponibilidad: DisponibilidadDia[];
-}
-
-interface SeleccionCheckIn {
-    idHabitacion: string;
-    fechaDesde: string;
-    fechaHasta: string;
-    numero: number;
-    esOcuparIgual: boolean;
-}
-
+// --- TYPES LOCALES ---
 interface Huesped {
     idHuesped: string;
     nombre: string;
@@ -58,194 +46,238 @@ interface Huesped {
     tipoDocumento?: { tipoDocumento: string };
 }
 
+interface SeleccionCheckIn {
+    idHabitacion: string;
+    fechaDesde: string;
+    fechaHasta: string;
+    numero: number;
+    esOcuparIgual: boolean;
+    huespedes: Huesped[];
+}
 
-// COMPONENTE PRINCIPAL
+// --- UTILIDADES ---
+const getTodayString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
+const getTomorrowString = () => {
+    const today = new Date();
+    today.setDate(today.getDate() + 1);
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
+const formatearFecha = (fechaStr: string) => {
+    if (!fechaStr) return "-";
+    const date = new Date(fechaStr + "T00:00:00");
+    return new Intl.DateTimeFormat("es-AR", {
+        day: "2-digit",
+        month: "2-digit"
+    }).format(date);
+};
+
+// --- COMPONENTE PRINCIPAL ---
 export default function CheckInPanel() {
-
-    // --- ESTADOS DE FLUJO ---
-    const [paso, setPaso] = useState<'GRILLA' | 'HUESPEDES'>('GRILLA');
+    // ESTADOS FLUJO
+    const [paso, setPaso] = useState<"GRILLA" | "HUESPEDES">("GRILLA");
     const [loading, setLoading] = useState(false);
 
-    // --- ESTADOS GRILLA ---
+    // ESTADOS GRILLA
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
     const [gridData, setGridData] = useState<HabitacionDisponibilidad[]>([]);
     const [searched, setSearched] = useState(false);
-
-    // Selección temporal
     const [tempSelect, setTempSelect] = useState<{
-        start: string | null,
-        end: string | null,
-        roomId: string | null
+        start: string | null;
+        end: string | null;
+        roomId: string | null;
     }>({ start: null, end: null, roomId: null });
 
+    // ESTADO DATOS
     const [selecciones, setSelecciones] = useState<SeleccionCheckIn[]>([]);
-    const [panelOpen, setPanelOpen] = useState(false);
+    const [titularGlobal, setTitularGlobal] = useState<Huesped | null>(null);
 
-    // ESTADOS CONFLICTO
+    // UI & MODALES
+    const [habitacionActivaIndex, setHabitacionActivaIndex] = useState<number>(0);
     const [modalConflicto, setModalConflicto] = useState(false);
     const [conflictDetails, setConflictDetails] = useState<DisponibilidadDia[]>([]);
+    const [alertPendingOpen, setAlertPendingOpen] = useState(false);
 
-    // ESTADOS HUESPEDES
+    // Modales Salida y Éxito
+    const [modalSalirOpen, setModalSalirOpen] = useState(false);
+    const [modalExitoOpen, setModalExitoOpen] = useState(false); // NUEVO
+
+    // BÚSQUEDA HUESPEDES
     const [searchApellido, setSearchApellido] = useState("");
     const [searchNombre, setSearchNombre] = useState("");
     const [searchDocumento, setSearchDocumento] = useState("");
     const [listaHuespedes, setListaHuespedes] = useState<Huesped[]>([]);
-    const [titular, setTitular] = useState<string | null>(null);
-    const [acompanantes, setAcompanantes] = useState<string[]>([]);
 
+    // INIT
     useEffect(() => {
-        const hoy = new Date();
-        const manana = new Date(hoy);
-        manana.setDate(manana.getDate() + 1);
-        setDesde(hoy.toISOString().split('T')[0]);
-        setHasta(manana.toISOString().split('T')[0]);
+        setDesde(getTodayString());
+        setHasta(getTomorrowString());
     }, []);
 
-    const formatearFecha = (fechaStr: string) => {
-        const date = new Date(fechaStr + "T00:00:00");
-        return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit" }).format(date);
-    };
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setTempSelect({ start: null, end: null, roomId: null });
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
 
-
-    // 1. LÓGICA DE GRILLA Y BÚSQUEDA
-
+    // --- LOGICA DE GRILLA ---
     const handleBuscarDisponibilidad = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
+        if (desde !== getTodayString()) {
+            alert("El Check-In debe realizarse con fecha de inicio HOY.");
+            setDesde(getTodayString());
+            return;
+        }
+        realizarBusquedaGrilla();
+    };
+
+    const realizarBusquedaGrilla = async () => {
         setLoading(true);
         setSearched(true);
         setTempSelect({ start: null, end: null, roomId: null });
 
         try {
-            const res = await fetch(`http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}`);
+            const res = await fetch(
+                `http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}`
+            );
             const data = await res.json();
             setGridData(data);
         } catch (error) {
             console.error(error);
-            alert("Error al cargar disponibilidad.");
+            setGridData([]);
         } finally {
             setLoading(false);
         }
     };
 
     const handleCellClick = (roomId: string, dateStr: string, estado: string) => {
-
+        const todayStr = getTodayString();
+        // Si la habitación ya está ocupada (quizás acabamos de hacer check-in), no permite clic
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
         if (!tempSelect.start) {
+            if (dateStr !== todayStr) return;
             setTempSelect({ start: dateStr, end: null, roomId });
         } else if (tempSelect.start && !tempSelect.end) {
             if (tempSelect.roomId !== roomId) {
-                setTempSelect({ start: dateStr, end: null, roomId });
+                if (dateStr === todayStr)
+                    setTempSelect({ start: dateStr, end: null, roomId });
+                else setTempSelect({ start: null, end: null, roomId: null });
                 return;
             }
-            let start = tempSelect.start;
-            let end = dateStr;
-            if (new Date(dateStr) < new Date(start)) {
-                start = dateStr;
-                end = tempSelect.start;
+            if (new Date(dateStr) <= new Date(tempSelect.start)) {
+                setTempSelect({ start: todayStr, end: null, roomId });
+                return;
             }
-            setTempSelect({ start, end, roomId });
+            setTempSelect({ start: tempSelect.start, end: dateStr, roomId });
         } else {
-            setTempSelect({ start: dateStr, end: null, roomId });
+            if (dateStr === todayStr)
+                setTempSelect({ start: dateStr, end: null, roomId });
+            else setTempSelect({ start: null, end: null, roomId: null });
         }
     };
 
-    const isTempSelected = (roomId: string, dateStr: string) => {
-        if (tempSelect.roomId !== roomId) return false;
-        if (!tempSelect.start) return false;
-        const d = new Date(dateStr);
-        const start = new Date(tempSelect.start);
-        if (!tempSelect.end) return d.getTime() === start.getTime();
-        const end = new Date(tempSelect.end);
-        return d >= start && d <= end;
-    };
-
-    const isFinalSelected = (roomId: string, dateStr: string) => {
-        return selecciones.some(sel =>
-            sel.idHabitacion === roomId &&
-            new Date(dateStr) >= new Date(sel.fechaDesde) &&
-            new Date(dateStr) <= new Date(sel.fechaHasta)
-        );
-    };
-
-
     const intentarAgregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
-
-        const hab = gridData.find(h => h.habitacion.id_habitacion === tempSelect.roomId);
+        const hab = gridData.find((h) => h.habitacion.id_habitacion === tempSelect.roomId);
         if (!hab) return;
 
         const start = new Date(tempSelect.start);
         const end = new Date(tempSelect.end);
-
-        // Filtramos los días dentro del rango
-        const diasRango = hab.disponibilidad.filter(d => {
+        const diasRango = hab.disponibilidad.filter((d) => {
             const current = new Date(d.fecha);
             return current >= start && current <= end;
         });
 
-        const tieneReservas = diasRango.some(d => d.estado === "RESERVADA");
-        const tieneDisponibles = diasRango.some(d => d.estado === "DISPONIBLE");
-        const tieneBloqueos = diasRango.some(d => d.estado === "OCUPADA" || d.estado === "MANTENIMIENTO");
+        const tieneBloqueos = diasRango.some((d) => d.estado === "OCUPADA" || d.estado === "MANTENIMIENTO");
+        if (tieneBloqueos) { alert("El rango contiene días bloqueados."); return; }
 
+        const tieneReservas = diasRango.some((d) => d.estado === "RESERVADA");
+        const tieneDisponibles = diasRango.some((d) => d.estado === "DISPONIBLE");
 
-        if (tieneBloqueos) {
-            alert("El rango seleccionado contiene días bloqueados (Ocupado o Mantenimiento).");
-            return;
-        }
-
-        // MIXTO (Disponible + Reservado)
         if (tieneReservas && tieneDisponibles) {
-            const conflictos = diasRango.filter(d => d.estado === "RESERVADA");
-            setConflictDetails(conflictos);
+            setConflictDetails(diasRango.filter((d) => d.estado === "RESERVADA"));
             setModalConflicto(true);
             return;
         }
-
-        // TODAS DISPONIBLES
-        if (tieneDisponibles && !tieneReservas) {
-            confirmarAgregar(false);
-            return;
-        }
-
-        //TODAS RESERVADAS
         if (!tieneDisponibles && tieneReservas) {
-            // Asumimos que es el check-in de la reserva existente
             confirmarAgregar(true);
             return;
         }
+        confirmarAgregar(false);
     };
 
     const confirmarAgregar = (esOcuparIgual: boolean) => {
-        const hab = gridData.find(h => h.habitacion.id_habitacion === tempSelect.roomId);
+        const hab = gridData.find((h) => h.habitacion.id_habitacion === tempSelect.roomId);
         if (!hab) return;
 
-        setSelecciones(prev => [
+        setSelecciones((prev) => [
             ...prev,
             {
                 idHabitacion: tempSelect.roomId!,
                 fechaDesde: tempSelect.start!,
                 fechaHasta: tempSelect.end!,
                 numero: hab.habitacion.numero,
-                esOcuparIgual: esOcuparIgual
+                esOcuparIgual: esOcuparIgual,
+                huespedes: []
             }
         ]);
-
-        // Limpieza
         setTempSelect({ start: null, end: null, roomId: null });
         setModalConflicto(false);
-        setConflictDetails([]);
-        setPanelOpen(true);
     };
 
     const eliminarSeleccion = (index: number) => {
-        setSelecciones(prev => prev.filter((_, i) => i !== index));
+        setSelecciones((prev) => prev.filter((_, i) => i !== index));
+        if (habitacionActivaIndex >= index && habitacionActivaIndex > 0) {
+            setHabitacionActivaIndex(habitacionActivaIndex - 1);
+        }
     };
 
+    const checkPendingAndContinue = () => {
+        if (tempSelect.start && tempSelect.end && tempSelect.roomId) {
+            setAlertPendingOpen(true);
+        } else {
+            setPaso("HUESPEDES");
+            setHabitacionActivaIndex(0);
+        }
+    };
 
-    // 3. LÓGICA DE HUÉSPEDES Y FINALIZACIÓN
+    const handleDiscardAndContinue = () => {
+        setTempSelect({ start: null, end: null, roomId: null });
+        setAlertPendingOpen(false);
+        setPaso("HUESPEDES");
+        setHabitacionActivaIndex(0);
+    };
 
+    const handleAddAndContinue = () => {
+        intentarAgregarSeleccion();
+        setAlertPendingOpen(false);
+    };
+
+    const volverAGrilla = () => {
+        setPaso("GRILLA");
+        setTempSelect({ start: null, end: null, roomId: null });
+        // Si volvemos manualmente (botón "Agregar otra"), no forzamos recarga inmediata,
+        // confiamos en los datos actuales. Pero si venimos de un Success, lo forzaremos (ver abajo).
+        if (!searched) realizarBusquedaGrilla();
+    };
+
+    // --- LÓGICA DE HUÉSPEDES ---
     const buscarHuesped = async () => {
         try {
             const res = await fetch("http://localhost:8080/Huesped/Buscar", {
@@ -258,25 +290,77 @@ export default function CheckInPanel() {
             const data = await res.json();
             setListaHuespedes(data.huespedesEncontrados || []);
         } catch (error) {
-            console.error(error);
             alert("Error al buscar huéspedes");
         }
     };
 
-    const handleFinalizarCheckIn = async () => {
-        if (!titular) return;
-        if (selecciones.length === 0) return;
+    const limpiarFormularioHuesped = () => {
+        setSearchApellido("");
+        setSearchNombre("");
+        setSearchDocumento("");
+        setListaHuespedes([]);
+        document.getElementById("input-apellido")?.focus();
+    };
+
+    const toggleHuespedEnActiva = (huesped: Huesped) => {
+        const index = habitacionActivaIndex;
+        if (index < 0 || index >= selecciones.length) return;
+
+        const estaEnOtra = selecciones.some((sel, idx) =>
+            idx !== index && sel.huespedes?.some(h => h.idHuesped === huesped.idHuesped)
+        );
+
+        if (estaEnOtra) {
+            alert(`El huésped ${huesped.apellido} ya está asignado a otra habitación.`);
+            return;
+        }
+
+        setSelecciones((prev) => {
+            const nuevas = [...prev];
+            const habitacion = { ...nuevas[index], huespedes: nuevas[index].huespedes || [] };
+            const yaEsta = habitacion.huespedes.some((h) => h.idHuesped === huesped.idHuesped);
+
+            if (yaEsta) {
+                habitacion.huespedes = habitacion.huespedes.filter((h) => h.idHuesped !== huesped.idHuesped);
+            } else {
+                habitacion.huespedes = [...habitacion.huespedes, huesped];
+            }
+            nuevas[index] = habitacion;
+            return nuevas;
+        });
+    };
+
+    const handleSeguirCargando = () => {
+        if (habitacionActivaIndex < selecciones.length - 1) {
+            setHabitacionActivaIndex(prev => prev + 1);
+            limpiarFormularioHuesped();
+        }
+    };
+
+    // --- PROCESAMIENTO FINAL ---
+    const procesarCheckIn = async () => {
+        if (!titularGlobal) {
+            alert("Debe seleccionar un Titular responsable para el Check-In.");
+            return;
+        }
+
+        const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
+        if (habitacionesVacias.length > 0) {
+            if (!confirm(`Hay ${habitacionesVacias.length} habitaciones sin huéspedes asignados. ¿Desea continuar igual?`)) {
+                return;
+            }
+        }
+
         setLoading(true);
 
-        const huespedTitularObj = listaHuespedes.find(h => h.idHuesped === titular);
-
         const payload = {
-            huespedTitular: huespedTitularObj,
-            acompanantesIds: acompanantes,
-            habitaciones: selecciones.map(h => ({
-                idHabitacion: h.idHabitacion,
-                fechaDesde: `${h.fechaDesde}T14:00:00`,
-                fechaHasta: `${h.fechaHasta}T10:00:00`
+            idHuespedTitular: titularGlobal.idHuesped,
+            habitaciones: selecciones.map((sel) => ({
+                idHabitacion: sel.idHabitacion,
+                fechaDesde: `${sel.fechaDesde}T14:00:00`,
+                fechaHasta: `${sel.fechaHasta}T10:00:00`,
+                idReservaAsociada: null,
+                acompanantesIds: (sel.huespedes || []).map(h => h.idHuesped)
             }))
         };
 
@@ -286,301 +370,420 @@ export default function CheckInPanel() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
-            const data = await res.json();
 
-            if (data.id === 0 || res.ok) {
-                alert("Check-In realizado con éxito.");
-                setSelecciones([]);
-                setTitular(null);
-                setAcompanantes([]);
-                setPaso('GRILLA');
-                handleBuscarDisponibilidad();
+            if (res.ok) {
+                // EXITO: Abrir Modal de decisión
+                setModalExitoOpen(true);
             } else {
-                alert("Error: " + data.mensaje);
+                const errorText = await res.text();
+                alert("Error al procesar Check-In: " + errorText);
             }
         } catch (error) {
             console.error(error);
-            alert("Error de conexión");
+            alert("Error de conexión con el servidor.");
         } finally {
             setLoading(false);
         }
     };
 
-    // RENDER
+    // --- NUEVO FLUJO POST-EXITO ---
+    const handleCargarOtra = () => {
+        // 1. Limpiar datos de sesión actual
+        setSelecciones([]);
+        setTitularGlobal(null);
+        setListaHuespedes([]);
+        setTempSelect({ start: null, end: null, roomId: null });
+        setModalExitoOpen(false);
 
-    const renderGrilla = () => (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-6 rounded-xl border border-green-100 shadow-sm">
-                <div className="flex items-center gap-2 mb-6 border-b border-green-100 pb-4">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                        <CalendarRange className="h-5 w-5 text-green-800" />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-semibold text-green-950">Nuevo Check-In</h2>
-                        <p className="text-sm text-gray-500">Paso 1: Seleccione fechas y habitaciones.</p>
-                    </div>
-                </div>
+        // 2. Volver a la grilla
+        setPaso("GRILLA");
 
-                <form onSubmit={handleBuscarDisponibilidad} className="flex flex-col sm:flex-row gap-4 items-end">
-                    <div className="w-full sm:w-1/3">
-                        <label className="text-sm font-medium text-gray-700">Desde</label>
-                        <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} required />
-                    </div>
-                    <div className="w-full sm:w-1/3">
-                        <label className="text-sm font-medium text-gray-700">Hasta</label>
-                        <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} required />
-                    </div>
-                    <Button className="bg-green-700 text-white hover:bg-green-800" disabled={loading}>
-                        <Search className="h-4 w-4 mr-2" />
-                        {loading ? "..." : "Buscar"}
-                    </Button>
-                </form>
-            </div>
+        // 3. RECARGAR DATOS DEL BACKEND (Importante para ver lo ocupado en rojo)
+        realizarBusquedaGrilla();
+    };
 
-            {searched && (
-                <Card className="border-green-100 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b border-green-100 bg-green-50/30 flex justify-between items-center">
-                        <h3 className="font-semibold text-green-950 flex items-center gap-2">
-                            <Bed className="h-4 w-4" /> Estado de Habitaciones
-                        </h3>
-                        <Button onClick={() => setPanelOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2">
-                            Ver Seleccionadas ({selecciones.length})
-                        </Button>
-                    </div>
+    const handleFinalizarSalir = () => {
+        // Recargar la página completa para limpiar todo
+        window.location.reload();
+    };
 
-                    <div className="overflow-x-auto">
-                        {loading ? (
-                            <div className="p-12 text-center text-gray-500">Cargando...</div>
-                        ) : gridData.length > 0 ? (
-                            <table className="w-full text-xs text-center border-collapse">
-                                <thead>
-                                <tr>
-                                    <th className="p-3 text-left bg-gray-50 border-b text-gray-600 font-medium sticky left-0 z-10 w-32">
-                                        Habitación
-                                    </th>
-                                    {gridData[0].disponibilidad.map((d, i) => (
-                                        <th key={i} className="p-2 border-b bg-gray-50 text-gray-600 font-medium min-w-[60px]">
-                                            {formatearFecha(d.fecha)}
-                                        </th>
-                                    ))}
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {gridData.map(row => (
-                                    <tr key={row.habitacion.id_habitacion}>
-                                        <td className="p-3 text-left bg-white sticky left-0 border-r border-b text-gray-700 shadow-sm">
-                                            <div className="font-bold text-green-900 text-sm">Hab {row.habitacion.numero}</div>
-                                            <div className="text-[10px] text-gray-400 uppercase">{row.habitacion.tipoHabitacion}</div>
-                                        </td>
-                                        {row.disponibilidad.map((dia, idx) => {
-                                            const temp = isTempSelected(row.habitacion.id_habitacion, dia.fecha);
-                                            const finalSel = isFinalSelected(row.habitacion.id_habitacion, dia.fecha);
-
-                                            let bgColor = "bg-white text-gray-300";
-                                            let content = "•";
-
-                                            if (dia.estado === "DISPONIBLE") {
-                                                bgColor = "bg-green-50 hover:bg-green-100 text-green-700";
-                                                content = "Libre";
-                                            } else if (dia.estado === "OCUPADA") {
-                                                bgColor = "bg-red-50 text-red-300";
-                                                content = "Ocu";
-                                            } else if (dia.estado === "MANTENIMIENTO") {
-                                                bgColor = "bg-gray-100 text-gray-400";
-                                                content = "Mant";
-                                            } else if (dia.estado === "RESERVADA") {
-                                                bgColor = "bg-yellow-50 hover:bg-yellow-100 text-yellow-600 font-medium";
-                                                content = "Res";
-                                            }
-
-                                            if (finalSel) {
-                                                bgColor = "bg-blue-200 text-blue-900 font-bold border-blue-300";
-                                                content = "Sel";
-                                            }
-                                            if (temp) {
-                                                bgColor = "bg-blue-600 text-white font-bold";
-                                                content = "+";
-                                            }
-
-                                            const clickable = dia.estado === "DISPONIBLE" || dia.estado === "RESERVADA";
-                                            const cursorClass = clickable ? "cursor-pointer" : "cursor-not-allowed";
-
-                                            return (
-                                                <td
-                                                    key={idx}
-                                                    onClick={() => clickable && handleCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado)}
-                                                    className={`p-1 border-b border-r transition-all duration-200 ${bgColor} ${cursorClass}`}
-                                                >
-                                                    {content}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        ) : (
-                            <div className="p-12 text-center text-gray-500">No hay datos.</div>
-                        )}
-                    </div>
-                </Card>
-            )}
-        </div>
-    );
-
-    const renderBusquedaHuesped = () => (
-        <div className="space-y-6 animate-in slide-in-from-right duration-300">
-            <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold flex items-center gap-2 text-green-950">
-                    <Users className="w-6 h-6" /> Paso 2: Datos del Huésped
-                </h2>
-                <Button variant="outline" onClick={() => setPaso('GRILLA')}>Volver a la Grilla</Button>
-            </div>
-
-            <Card className="p-6 border-green-100 shadow-md">
-                <div className="flex flex-col md:flex-row gap-3 mb-6">
-                    <Input placeholder="Apellido" value={searchApellido} onChange={e => setSearchApellido(e.target.value)} />
-                    <Input placeholder="Nombre" value={searchNombre} onChange={e => setSearchNombre(e.target.value)} />
-                    <Input placeholder="DNI / Documento" value={searchDocumento} onChange={e => setSearchDocumento(e.target.value)} />
-                    <Button onClick={buscarHuesped} className="bg-green-700 text-white hover:bg-green-800">
-                        <Search className="w-4 h-4 mr-2"/> Buscar
-                    </Button>
-                </div>
-                <div className="border-t pt-4">
-                    {listaHuespedes.map(h => (
-                        <div key={h.idHuesped} className="border border-gray-100 bg-gray-50/50 p-3 rounded-lg flex justify-between items-center hover:bg-white transition mb-2">
-                            <div>
-                                <p className="font-bold text-gray-800">{h.apellido}, {h.nombre}</p>
-                                <p className="text-sm text-gray-500">Doc: {h.numDoc}</p>
-                            </div>
-                            <div className="flex gap-2">
-                                {/* 1. BOTÓN TITULAR */}
-                                <Button
-                                    size="sm"
-                                    variant={titular === h.idHuesped ? "default" : "outline"}
-
-                                    className={titular === h.idHuesped ? "bg-green-600 hover:bg-green-700" : ""}
-
-                                    onClick={() => setTitular(h.idHuesped)}
-                                >
-                                    {titular === h.idHuesped ? "Es Titular" : "Marcar Titular"}
-                                </Button>
-
-                                {/* 2. BOTÓN ACOMPAÑANTE */}
-                                <Button
-                                    size="sm"
-                                    variant={acompanantes.includes(h.idHuesped) ? "default" : "outline"}
-
-
-                                    className={acompanantes.includes(h.idHuesped) ? "bg-blue-600 hover:bg-blue-700" : ""}
-
-                                    onClick={() => {
-                                        if (acompanantes.includes(h.idHuesped)) {
-                                            setAcompanantes(acompanantes.filter(id => id !== h.idHuesped));
-                                        } else {
-                                            setAcompanantes([...acompanantes, h.idHuesped]);
-                                        }
-                                    }}
-                                >
-                                    Acompañante
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <div className="mt-6 flex justify-end pt-4 border-t">
-                    <Button className="bg-green-800 text-white hover:bg-green-900 px-8 py-6 text-lg" onClick={handleFinalizarCheckIn} disabled={!titular || loading || selecciones.length === 0}>
-                        {loading ? "Procesando..." : `Confirmar Check-In (${selecciones.length} habs)`}
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    );
-
+    // ===================== RENDER =====================
     return (
-        <div className="min-h-[calc(100vh-200px)]">
-            {paso === 'GRILLA' && renderGrilla()}
-            {paso === 'HUESPEDES' && renderBusquedaHuesped()}
+        <div className="container mx-auto max-w-[1600px] p-4 sm:p-6 space-y-6 animate-in fade-in duration-500 pb-10 min-h-screen bg-gray-50/30">
 
-            {/* PANEL LATERAL */}
-            {panelOpen && (
-                <div className="fixed inset-0 z-40 flex">
-                    <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px]" onClick={() => setPanelOpen(false)} />
-                    <div className="ml-auto h-full w-full sm:w-[400px] bg-white shadow-2xl border-l border-green-100 p-6 animate-in slide-in-from-right duration-300 overflow-y-auto relative z-50 flex flex-col">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-green-950 flex items-center gap-2">
-                                <CheckCircle2 className="w-5 h-5"/> Seleccionadas
+            {/* HEADER */}
+            <Card className="bg-white border-green-100 shadow-sm relative overflow-hidden">
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${paso === "GRILLA" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>
+                            {paso === "GRILLA" ? <Clock className="h-6 w-6" /> : <Users className="h-6 w-6" />}
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900">
+                                {paso === "GRILLA" ? "Paso 1: Selección de Habitaciones" : "Paso 2: Asignación de Roles"}
                             </h2>
-                            <button onClick={() => setPanelOpen(false)} className="p-1 hover:bg-gray-100 rounded-full">
-                                <X className="h-5 w-5 text-gray-500" />
-                            </button>
-                        </div>
-                        <div className="flex-1 space-y-3">
-                            {selecciones.map((sel, i) => (
-                                <div key={i} className="border border-green-200 rounded-lg p-3 bg-green-50 shadow-sm flex justify-between items-center">
-                                    <div>
-                                        <div className="font-bold text-green-900 flex items-center gap-2">
-                                            Habitación {sel.numero}
-                                            {sel.esOcuparIgual && <span className="text-[10px] bg-yellow-200 px-1 rounded text-yellow-800">Ocupar Igual</span>}
-                                        </div>
-                                        <div className="text-xs text-gray-600">{formatearFecha(sel.fechaDesde)} ➝ {formatearFecha(sel.fechaHasta)}</div>
-                                    </div>
-                                    <button onClick={() => eliminarSeleccion(i)} className="text-red-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="mt-6 space-y-3 pt-6 border-t">
-                            {tempSelect.start && tempSelect.end && (
-                                <Button onClick={intentarAgregarSeleccion} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                                    Agregar Selección de Grilla
-                                </Button>
-                            )}
-                            {selecciones.length > 0 && (
-                                <Button onClick={() => { setPanelOpen(false); setPaso('HUESPEDES'); }} className="w-full bg-green-700 hover:bg-green-800 text-white py-6 font-semibold">
-                                    Continuar a Huéspedes
-                                </Button>
-                            )}
+                            <p className="text-sm text-gray-500">
+                                {paso === "GRILLA"
+                                    ? "Seleccione rango de fechas (Inicio HOY)."
+                                    : `Asigne el Titular del Check-In y los ocupantes de las ${selecciones.length} habitaciones.`}
+                            </p>
                         </div>
                     </div>
-                </div>
-            )}
 
-            {/* (REQUISITO 3) - SIN NOMBRES */}
+                    {paso === "GRILLA" && (
+                        <form onSubmit={handleBuscarDisponibilidad} className="flex gap-4 items-end mr-12 sm:mr-32 lg:mr-0">
+                            <div className="w-28 sm:w-32">
+                                <label className="text-xs font-semibold text-gray-500">Entrada</label>
+                                <Input value={getTodayString()} disabled className="h-9 bg-gray-100 text-center" />
+                            </div>
+                            <div className="w-28 sm:w-32">
+                                <label className="text-xs font-semibold text-gray-500">Salida</label>
+                                <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} min={getTomorrowString()} className="h-9 text-center" />
+                            </div>
+                            <Button size="sm" type="submit" className="bg-green-700 h-9 px-4">
+                                <Search className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Consultar</span>
+                            </Button>
+                        </form>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* CONTENIDO PRINCIPAL */}
+            <div className="flex flex-col lg:flex-row gap-6">
+
+                {/* --- MODO GRILLA --- */}
+                {paso === "GRILLA" && (
+                    <>
+                        <div className="flex-1 space-y-4">
+                            {searched ? (
+                                <GrillaDisponibilidad
+                                    data={gridData}
+                                    loading={loading}
+                                    tempSelection={tempSelect}
+                                    finalSelections={selecciones.map((sel) => ({
+                                        idHabitacion: sel.idHabitacion,
+                                        fechaDesde: sel.fechaDesde,
+                                        fechaHasta: sel.fechaHasta
+                                    }))}
+                                    onCellClick={handleCellClick}
+                                    modo="checkin"
+                                />
+                            ) : (
+                                <div className="text-center p-12 bg-gray-50 rounded-lg border-dashed border-2 text-gray-400 h-64 flex flex-col items-center justify-center">
+                                    <Clock className="h-10 w-10 mb-2 opacity-20" />
+                                    Presione "Consultar" para ver disponibilidad.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* SIDEBAR DE GRILLA */}
+                        {searched && gridData.length > 0 && (
+                            <aside className="w-full lg:w-80 shrink-0 space-y-4 sticky top-6 animate-in slide-in-from-right duration-500">
+                                {/* Panel Selección Actual */}
+                                <Card className={`border-2 transition-all shadow-md ${tempSelect.roomId ? "border-blue-400 bg-blue-50/50" : "border-gray-100 bg-gray-50 opacity-80"}`}>
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm font-bold uppercase text-gray-500 flex items-center gap-2">
+                                            <CalendarDays className="h-4 w-4" /> Selección Actual
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {tempSelect.roomId ? (
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-center bg-white p-2 rounded border border-blue-200">
+                                                    <span className="font-bold text-blue-900">Hab {gridData.find((h) => h.habitacion.id_habitacion === tempSelect.roomId)?.habitacion.numero}</span>
+                                                    <div className="text-xs text-right">
+                                                        <div className="text-gray-500">Entrada: {formatearFecha(tempSelect.start!)}</div>
+                                                        {tempSelect.end && <div className="text-gray-500">Salida: {formatearFecha(tempSelect.end)}</div>}
+                                                    </div>
+                                                </div>
+                                                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={intentarAgregarSeleccion} disabled={!tempSelect.end}>
+                                                    {tempSelect.end ? "Agregar al Check-In" : "Seleccione fecha fin"}
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-gray-400 italic">Haz click en la columna de <strong>HOY</strong> para comenzar.</p>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Lista Carrito */}
+                                <Card className="border-gray-200 shadow-sm h-fit max-h-[500px] flex flex-col">
+                                    <CardHeader className="pb-3 border-b bg-gray-50">
+                                        <CardTitle className="text-base font-semibold text-gray-800 flex justify-between items-center">
+                                            <span className="flex items-center gap-2"><ListChecks className="h-4 w-4" /> Habitaciones</span>
+                                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">{selecciones.length}</span>
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-0 overflow-y-auto flex-1 custom-scrollbar">
+                                        {selecciones.length === 0 ? (
+                                            <div className="p-6 text-center text-sm text-gray-400">Lista vacía.</div>
+                                        ) : (
+                                            <div className="divide-y divide-gray-100">
+                                                {selecciones.map((sel, i) => (
+                                                    <div key={i} className="p-3 hover:bg-gray-50 transition flex justify-between items-center group">
+                                                        <div>
+                                                            <div className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                                                Hab {sel.numero}
+                                                                {sel.esOcuparIgual && <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200">Ocupar</span>}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                                                                {formatearFecha(sel.fechaDesde)} <ArrowRight className="h-3 w-3" /> {formatearFecha(sel.fechaHasta)}
+                                                            </div>
+                                                        </div>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={() => eliminarSeleccion(i)}>
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                    {(selecciones.length > 0 || (tempSelect.start && tempSelect.end)) && (
+                                        <div className="p-4 border-t bg-gray-50">
+                                            <Button className="w-full bg-green-700 hover:bg-green-800 text-white shadow-md font-semibold" onClick={checkPendingAndContinue}>
+                                                Continuar a Huéspedes <ArrowRight className="h-4 w-4 ml-2" />
+                                            </Button>
+                                        </div>
+                                    )}
+                                </Card>
+                            </aside>
+                        )}
+                    </>
+                )}
+
+                {/* --- MODO HUÉSPEDES --- */}
+                {paso === "HUESPEDES" && (
+                    <div className="w-full flex flex-col lg:flex-row gap-6 h-[calc(100vh-200px)] animate-in fade-in">
+                        {/* IZQUIERDA: LISTA HABITACIONES Y TITULAR */}
+                        <Card className="w-full lg:w-1/3 flex flex-col border-green-200 shadow-md h-full">
+
+                            {/* SECCIÓN TITULAR */}
+                            <div className="p-4 bg-green-50/80 border-b border-green-100">
+                                <div className="text-xs font-bold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                    <UserCheck className="h-4 w-4" /> Titular Responsable
+                                </div>
+                                {titularGlobal ? (
+                                    <div className="flex justify-between items-center bg-white p-2 rounded border border-green-200 shadow-sm">
+                                        <div className="truncate font-bold text-gray-800">{titularGlobal.apellido}, {titularGlobal.nombre}</div>
+                                        <Button size="sm" variant="ghost" onClick={() => setTitularGlobal(null)} className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></Button>
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-red-500 italic p-2 border border-dashed border-red-200 rounded bg-red-50/50">
+                                        Seleccione un huésped de la lista y haga click en "Asignar Titular".
+                                    </div>
+                                )}
+                            </div>
+
+                            <CardHeader className="pb-2 pt-4">
+                                <CardTitle className="text-lg flex items-center gap-2 text-gray-800">
+                                    <Bed className="h-5 w-5" /> Ocupación Habitaciones
+                                </CardTitle>
+                                <CardDescription className="text-xs">Seleccione una habitación para agregarle ocupantes.</CardDescription>
+                            </CardHeader>
+
+                            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3">
+                                {selecciones.map((sel, idx) => {
+                                    const isActive = idx === habitacionActivaIndex;
+                                    const ocupantes = sel.huespedes || [];
+                                    return (
+                                        <div
+                                            key={idx}
+                                            onClick={() => { setHabitacionActivaIndex(idx); limpiarFormularioHuesped(); }}
+                                            className={`p-3 rounded-lg border transition-all cursor-pointer relative ${isActive ? "bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-200" : "bg-white border-gray-200 hover:border-blue-200"}`}
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="font-bold text-gray-800 text-lg">Hab {sel.numero}</span>
+                                                {isActive && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full">Editando</span>}
+                                            </div>
+                                            <hr className="my-2 border-gray-200" />
+                                            <div className="min-h-[20px]">
+                                                <p className="text-xs font-semibold text-gray-500 mb-1">Huéspedes ({ocupantes.length}):</p>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {ocupantes.map((a) => (
+                                                        <span key={a.idHuesped} className="text-[10px] bg-white border border-gray-200 px-2 py-1 rounded-full text-gray-700">
+                                                            {a.apellido}
+                                                        </span>
+                                                    ))}
+                                                    {ocupantes.length === 0 && <span className="text-[10px] text-gray-400 italic">Sin huéspedes asignados</span>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </Card>
+
+                        {/* DERECHA: BÚSQUEDA Y BOTONES */}
+                        <Card className="w-full lg:w-2/3 flex flex-col border-green-200 shadow-md h-full">
+                            <CardHeader className="pb-4">
+                                <CardTitle className="text-lg flex justify-between items-center">
+                                    <span className="flex items-center gap-2"><Search className="h-5 w-5" /> Buscar Personas</span>
+                                    <span className="border border-blue-100 bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-md font-bold">
+                                        Editando Ocupantes Hab: {selecciones[habitacionActivaIndex]?.numero}
+                                    </span>
+                                </CardTitle>
+                            </CardHeader>
+                            <div className="px-6 pb-4">
+                                <div className="flex gap-2 mb-2">
+                                    <Input id="input-apellido" placeholder="Apellido" value={searchApellido} onChange={(e) => setSearchApellido(e.target.value.toUpperCase())} />
+                                    <Input placeholder="Nombre" value={searchNombre} onChange={(e) => setSearchNombre(e.target.value.toUpperCase())} />
+                                    <Input placeholder="DNI" value={searchDocumento} onChange={(e) => setSearchDocumento(e.target.value)} />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <Button onClick={buscarHuesped} className="bg-blue-600 hover:bg-blue-700 text-white">BUSCAR</Button>
+                                </div>
+                            </div>
+                            <hr className="border-gray-100" />
+                            <div className="flex-1 overflow-y-auto p-6 bg-gray-50/30 custom-scrollbar space-y-2">
+                                {listaHuespedes.map((h) => {
+                                    const isTitular = titularGlobal?.idHuesped === h.idHuesped;
+                                    const isEnActiva = (selecciones[habitacionActivaIndex]?.huespedes || []).some((a) => a.idHuesped === h.idHuesped);
+
+                                    return (
+                                        <div key={h.idHuesped} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-center hover:shadow-md transition-all">
+                                            <div>
+                                                <div className="font-bold text-gray-800">{h.apellido}, {h.nombre}</div>
+                                                <div className="text-xs text-gray-500">{h.numDoc}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant={isTitular ? "default" : "secondary"}
+                                                    className={isTitular ? "bg-green-600" : "bg-green-50 text-green-700 hover:bg-green-100 border border-green-200"}
+                                                    onClick={() => setTitularGlobal(h)}
+                                                    disabled={isTitular}
+                                                >
+                                                    {isTitular ? "Es Titular" : "Asignar Titular"}
+                                                </Button>
+
+                                                <Button
+                                                    size="sm"
+                                                    variant={isEnActiva ? "destructive" : "outline"}
+                                                    className={!isEnActiva ? "border-blue-200 text-blue-700 hover:bg-blue-50" : ""}
+                                                    onClick={() => toggleHuespedEnActiva(h)}
+                                                >
+                                                    {isEnActiva ? "Quitar de Hab" : <><UserPlus className="h-3 w-3 mr-1"/> Agregar a Hab</>}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* BARRA DE ACCIONES INFERIOR */}
+                            <div className="p-4 border-t bg-gray-50 flex flex-wrap gap-3 justify-between items-center">
+                                {/* IZQUIERDA */}
+                                <div className="flex gap-2">
+                                    <Button variant="outline" onClick={volverAGrilla} className="text-gray-700 border-gray-300 hover:bg-gray-100">
+                                        <PlusCircle className="h-4 w-4 mr-2" />
+                                        Agregar otra habitación
+                                    </Button>
+
+                                    {selecciones.length > 1 && habitacionActivaIndex < selecciones.length - 1 && (
+                                        <Button variant="secondary" onClick={handleSeguirCargando} className="bg-white border hover:bg-gray-100 text-gray-700 shadow-sm">
+                                            Seguir a Siguiente Hab <ArrowRight className="h-4 w-4 ml-2" />
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {/* DERECHA - BOTONES DE ACCIÓN PRINCIPAL */}
+                                <div className="flex gap-2">
+                                    <Button
+                                        className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
+                                        onClick={procesarCheckIn}
+                                        disabled={loading || !titularGlobal}
+                                    >
+                                        <Save className="h-4 w-4 mr-2" />
+                                        Guardar y Finalizar
+                                    </Button>
+
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() => setModalSalirOpen(true)}
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                )}
+            </div>
+
+            {/* MODALES */}
+
+            {/* 1. Modal de CONFLICTO */}
             <Dialog open={modalConflicto} onOpenChange={setModalConflicto}>
                 <DialogContent>
+                    <DialogHeader><DialogTitle>Conflicto Reserva</DialogTitle><DialogDescription>Días reservados en la selección.</DialogDescription></DialogHeader>
+                    <div className="bg-yellow-50 p-2 text-sm rounded max-h-32 overflow-auto">{conflictDetails.map((c, i) => <div key={i}>{formatearFecha(c.fecha)} - Reservada</div>)}</div>
+                    <DialogFooter><Button variant="outline" onClick={() => setModalConflicto(false)}>VOLVER</Button><Button className="bg-yellow-600 text-white" onClick={() => confirmarAgregar(true)}>OCUPAR IGUAL</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* 2. Modal SELECCIÓN PENDIENTE */}
+            <Dialog open={alertPendingOpen} onOpenChange={setAlertPendingOpen}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Selección Pendiente</DialogTitle><DialogDescription>Tienes una habitación marcada en la grilla sin agregar a la lista.</DialogDescription></DialogHeader>
+                    <DialogFooter><Button variant="ghost" onClick={handleDiscardAndContinue} className="text-red-500">Descartar</Button><Button onClick={handleAddAndContinue}>Agregar</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* 3. Modal SALIR (Cancelar) */}
+            <Dialog open={modalSalirOpen} onOpenChange={setModalSalirOpen}>
+                <DialogContent className="border-red-200 bg-red-50">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-yellow-600">
-                            <AlertCircle className="w-5 h-5"/> Conflicto en Rango Mixto
+                        <DialogTitle className="text-red-700 flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5" />
+                            ¿Cancelar todo el proceso?
                         </DialogTitle>
-                        <DialogDescription className="pt-2">
-                            Has seleccionado un rango que combina días <strong>Libres</strong> con días <strong>Reservados</strong>.
-                            <br/><br/>
-                            Los siguientes días ya tienen reserva (conflicto):
+                        <DialogDescription className="text-red-600">
+                            Se perderán todos los datos ingresados hasta ahora.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setModalSalirOpen(false)} className="border-red-200 text-red-700 hover:bg-red-100">
+                            Volver
+                        </Button>
+                        <Button className="bg-red-700 hover:bg-red-800 text-white" onClick={() => window.location.reload()}>
+                            Sí, Cancelar y Salir
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* 4. Modal de ÉXITO (NUEVO) */}
+            <Dialog open={modalExitoOpen} onOpenChange={setModalExitoOpen}>
+                <DialogContent className="border-green-200 bg-green-50 sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-green-800 flex items-center gap-2 text-xl">
+                            <CheckCircle2 className="h-6 w-6 text-green-600" />
+                            ¡Check-In Exitoso!
+                        </DialogTitle>
+                        <DialogDescription className="text-green-700 pt-2">
+                            Las habitaciones han sido registradas correctamente.
                         </DialogDescription>
                     </DialogHeader>
 
-                    {/* LISTA DE FECHAS CONFLICTIVAS */}
-                    <div className="max-h-[200px] overflow-y-auto bg-yellow-50 p-3 rounded border border-yellow-100 text-sm space-y-2">
-                        {conflictDetails.map((dia, idx) => (
-                            <div key={idx} className="flex justify-between border-b border-yellow-200 pb-1 last:border-0">
-                                <span className="font-semibold text-yellow-900">{formatearFecha(dia.fecha)}</span>
-                                <span className="text-yellow-800 italic">Reservada</span>
-                            </div>
-                        ))}
+                    <div className="py-4">
+                        <p className="text-sm text-gray-600 text-center font-medium">
+                            ¿Desea cargar otra habitación ahora?
+                        </p>
                     </div>
 
-                    <DialogFooter className="flex gap-2 sm:gap-0">
-                        {/* BOTÓN VOLVER */}
-                        <Button variant="outline" onClick={() => setModalConflicto(false)} className="flex items-center gap-2">
-                            <ArrowLeft className="w-4 h-4"/> Volver
-                        </Button>
-
-                        {/* BOTÓN OCUPAR IGUAL */}
+                    <DialogFooter className="flex-col sm:flex-row gap-2">
                         <Button
-                            className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                            onClick={() => confirmarAgregar(true)}
+                            variant="outline"
+                            onClick={handleFinalizarSalir}
+                            className="w-full sm:w-auto border-green-200 text-green-700 hover:bg-green-100"
                         >
-                            Ocupar Igual
+                            No, volver al inicio
+                        </Button>
+                        <Button
+                            onClick={handleCargarOtra}
+                            className="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white"
+                        >
+                            Sí, cargar otra
                         </Button>
                     </DialogFooter>
                 </DialogContent>
