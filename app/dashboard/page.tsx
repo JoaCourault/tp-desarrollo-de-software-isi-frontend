@@ -3,18 +3,22 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Hotel, LogOut, Users, Bed, CheckCircle } from "lucide-react";
+import { Hotel, LogOut, Users, Bed, CheckCircle, XCircle } from "lucide-react"; // Agregué XCircle para el icono
+
+// Componentes existentes
 import { GuestManagement } from "@/components/dashboard/GuestManagement";
 import { RoomManagement } from "@/components/dashboard/RoomManagement";
-
-// Nuevo componente Check-In
 import CheckInPanel from "@/components/dashboard/CheckInPanel";
+
+// IMPORTANTE: Asegúrate de que el archivo CancelReservationPanel.tsx
+// esté en la carpeta components/dashboard/ (o ajusta esta ruta)
+import CancelReservationPanel from "@/components/dashboard/CancelReservationPanel";
 
 export default function DashboardPage() {
     const router = useRouter();
 
-
-    const [activeTab, setActiveTab] = useState<"guests" | "rooms" | "checkin">("guests");
+    // Agregamos "cancelar" a los tipos de estado permitidos
+    const [activeTab, setActiveTab] = useState<"guests" | "rooms" | "checkin" | "cancelar">("guests");
     const [isChecking, setIsChecking] = useState(true);
 
     // Validar login
@@ -63,16 +67,16 @@ export default function DashboardPage() {
                 </div>
             </header>
 
-            {/* TABS */}
+            {/* TABS DE NAVEGACIÓN */}
             <div className="border-b bg-white shadow-sm">
                 <div className="container mx-auto px-4 lg:px-6">
-                    <nav className="flex gap-2 py-2">
+                    <nav className="flex gap-2 py-2 overflow-x-auto">
 
                         {/* TAB Huéspedes */}
                         <Button
                             variant={activeTab === "guests" ? "secondary" : "ghost"}
                             onClick={() => setActiveTab("guests")}
-                            className={`gap-2 ${activeTab === "guests"
+                            className={`gap-2 whitespace-nowrap ${activeTab === "guests"
                                 ? "bg-rose-100 text-rose-900 hover:bg-rose-200"
                                 : "text-muted-foreground hover:text-rose-900 hover:bg-rose-50"
                             }`}
@@ -84,7 +88,7 @@ export default function DashboardPage() {
                         <Button
                             variant={activeTab === "rooms" ? "secondary" : "ghost"}
                             onClick={() => setActiveTab("rooms")}
-                            className={`gap-2 ${activeTab === "rooms"
+                            className={`gap-2 whitespace-nowrap ${activeTab === "rooms"
                                 ? "bg-rose-100 text-rose-900 hover:bg-rose-200"
                                 : "text-muted-foreground hover:text-rose-900 hover:bg-rose-50"
                             }`}
@@ -96,12 +100,24 @@ export default function DashboardPage() {
                         <Button
                             variant={activeTab === "checkin" ? "secondary" : "ghost"}
                             onClick={() => setActiveTab("checkin")}
-                            className={`gap-2 ${activeTab === "checkin"
+                            className={`gap-2 whitespace-nowrap ${activeTab === "checkin"
                                 ? "bg-green-100 text-green-700 hover:bg-green-200"
                                 : "text-muted-foreground hover:text-green-700 hover:bg-green-50"
                             }`}
                         >
                             <CheckCircle className="w-4 h-4" /> Check-In
+                        </Button>
+
+                        {/* --- NUEVO TAB: CANCELAR RESERVA --- */}
+                        <Button
+                            variant={activeTab === "cancelar" ? "secondary" : "ghost"}
+                            onClick={() => setActiveTab("cancelar")}
+                            className={`gap-2 whitespace-nowrap ${activeTab === "cancelar"
+                                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                                : "text-muted-foreground hover:text-red-700 hover:bg-red-50"
+                            }`}
+                        >
+                            <XCircle className="w-4 h-4" /> Cancelar Reserva
                         </Button>
 
                     </nav>
@@ -113,6 +129,9 @@ export default function DashboardPage() {
                 {activeTab === "guests" && <GuestManagement />}
                 {activeTab === "rooms" && <RoomManagement />}
                 {activeTab === "checkin" && <CheckInPanel />}
+
+                {/* Renderizamos el nuevo componente aquí */}
+                {activeTab === "cancelar" && <CancelReservationPanel />}
             </main>
         </div>
     );
