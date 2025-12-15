@@ -16,7 +16,7 @@ import {
     AlertTriangle,
     PlusCircle,
     UserPlus,
-    CheckCircle2 // Nuevo icono para el éxito
+    CheckCircle2
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";

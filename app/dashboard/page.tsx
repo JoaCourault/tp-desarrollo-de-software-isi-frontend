@@ -3,22 +3,19 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Hotel, LogOut, Users, Bed, CheckCircle, XCircle } from "lucide-react"; // Agregué XCircle para el icono
+import { Hotel, LogOut, Users, Bed, CheckCircle, XCircle, CreditCard } from "lucide-react";
 
 // Componentes existentes
 import { GuestManagement } from "@/components/dashboard/GuestManagement";
 import { RoomManagement } from "@/components/dashboard/RoomManagement";
 import CheckInPanel from "@/components/dashboard/CheckInPanel";
-
-// IMPORTANTE: Asegúrate de que el archivo CancelReservationPanel.tsx
-// esté en la carpeta components/dashboard/ (o ajusta esta ruta)
+import { CheckOutPanel } from "@/components/dashboard/CheckOutPanel";
 import CancelReservationPanel from "@/components/dashboard/CancelReservationPanel";
 
 export default function DashboardPage() {
     const router = useRouter();
 
-    // Agregamos "cancelar" a los tipos de estado permitidos
-    const [activeTab, setActiveTab] = useState<"guests" | "rooms" | "checkin" | "cancelar">("guests");
+    const [activeTab, setActiveTab] = useState<"guests" | "rooms" | "checkin" | "cancelar" | "checkout">("guests");
     const [isChecking, setIsChecking] = useState(true);
 
     // Validar login
@@ -59,7 +56,7 @@ export default function DashboardPage() {
                         <Button
                             variant="outline"
                             onClick={handleLogout}
-                            className="text-rose-900 border-rose-200 hover:bg-rose-50"
+                            className="bg-rose-900 text-green hover:bg-rose-700"
                         >
                             <LogOut className="w-4 h-4 mr-2" /> Cerrar Sesión
                         </Button>
@@ -108,7 +105,19 @@ export default function DashboardPage() {
                             <CheckCircle className="w-4 h-4" /> Check-In
                         </Button>
 
-                        {/* --- NUEVO TAB: CANCELAR RESERVA --- */}
+                        {/* --- TAB: CHECK-OUT / FACTURACIÓN --- */}
+                        <Button
+                            variant={activeTab === "checkout" ? "secondary" : "ghost"}
+                            onClick={() => setActiveTab("checkout")}
+                            className={`gap-2 whitespace-nowrap ${activeTab === "checkout"
+                                ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                : "text-muted-foreground hover:text-blue-700 hover:bg-blue-50"
+                            }`}
+                        >
+                            <CreditCard className="w-4 h-4" /> Check-Out
+                        </Button>
+
+                        {/* TAB Cancelar Reserva */}
                         <Button
                             variant={activeTab === "cancelar" ? "secondary" : "ghost"}
                             onClick={() => setActiveTab("cancelar")}
@@ -129,9 +138,19 @@ export default function DashboardPage() {
                 {activeTab === "guests" && <GuestManagement />}
                 {activeTab === "rooms" && <RoomManagement />}
                 {activeTab === "checkin" && <CheckInPanel />}
-
-                {/* Renderizamos el nuevo componente aquí */}
                 {activeTab === "cancelar" && <CancelReservationPanel />}
+
+                {/* Renderizamos el CheckOutPanel cuando el tab está activo */}
+                {/* Nota: Al ser un Dialog, se abrirá sobre el fondo blanco */}
+                {activeTab === "checkout" && (
+                    <div className="flex h-[50vh] w-full items-center justify-center text-gray-400">
+                        <CheckOutPanel
+                            isOpen={true}
+                            onClose={() => setActiveTab("guests")} // Al cerrar volvemos a inicio
+                        />
+                        <p>Abriendo módulo de facturación...</p>
+                    </div>
+                )}
             </main>
         </div>
     );

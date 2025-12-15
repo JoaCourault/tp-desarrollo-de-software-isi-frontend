@@ -40,7 +40,7 @@ export async function checkInDirecto(payload: {
     return data;
 }
 
-/* <<<<<<<<<<<<<<  ✨ Windsurf Command ⭐ >>>>>>>>>>>>>>>> */
+
 /**
  * Obtiene las reservas del día actual.
  *

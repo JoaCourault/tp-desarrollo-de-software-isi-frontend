@@ -204,7 +204,7 @@ export default function CancelReservationPanel() {
                                 className="bg-white"
                             />
                         </div>
-                        <Button type="submit" className="bg-red-700 hover:bg-red-800 text-white w-full md:w-auto" disabled={loading}>
+                        <Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white w-full md:w-auto" disabled={loading}>
                             {loading ? <RefreshCcw className="h-4 w-4 animate-spin mr-2"/> : <Search className="h-4 w-4 mr-2" />}
                             Buscar
                         </Button>
