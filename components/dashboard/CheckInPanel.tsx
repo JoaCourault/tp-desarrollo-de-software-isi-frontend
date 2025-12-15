@@ -339,52 +339,80 @@ export default function CheckInPanel() {
 
     // --- PROCESAMIENTO FINAL ---
     const procesarCheckIn = async () => {
-        if (!titularGlobal) {
-            alert("Debe seleccionar un Titular responsable para el Check-In.");
-            return;
-        }
-
-        const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
-        if (habitacionesVacias.length > 0) {
-            if (!confirm(`Hay ${habitacionesVacias.length} habitaciones sin huéspedes asignados. ¿Desea continuar igual?`)) {
+            if (!titularGlobal) {
+                alert("Debe seleccionar un Titular responsable para el Check-In.");
                 return;
             }
-        }
 
-        setLoading(true);
-
-        const payload = {
-            idHuespedTitular: titularGlobal.idHuesped,
-            habitaciones: selecciones.map((sel) => ({
-                idHabitacion: sel.idHabitacion,
-                fechaDesde: `${sel.fechaDesde}T14:00:00`,
-                fechaHasta: `${sel.fechaHasta}T10:00:00`,
-                idReservaAsociada: null,
-                acompanantesIds: (sel.huespedes || []).map(h => h.idHuesped)
-            }))
-        };
-
-        try {
-            const res = await fetch("http://localhost:8080/Estadia/CheckIn", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                // EXITO: Abrir Modal de decisión
-                setModalExitoOpen(true);
-            } else {
-                const errorText = await res.text();
-                alert("Error al procesar Check-In: " + errorText);
+            const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
+            if (habitacionesVacias.length > 0) {
+                if (!confirm(`Hay ${habitacionesVacias.length} habitaciones sin huéspedes asignados. ¿Desea continuar igual?`)) {
+                    return;
+                }
             }
-        } catch (error) {
-            console.error(error);
-            alert("Error de conexión con el servidor.");
-        } finally {
-            setLoading(false);
-        }
-    };
+
+            setLoading(true);
+
+            // 1. Aplanar lista de Habitaciones (Solo IDs)
+            const listaIdsHabitaciones = selecciones.map(sel => sel.idHabitacion);
+
+            // 2. Aplanar lista de Huéspedes (Titular + Acompañantes, sin repetidos)
+            const setHuespedes = new Set<string>();
+            // Agregamos al titular
+            setHuespedes.add(titularGlobal.idHuesped);
+            // Agregamos a los acompañantes de todas las habitaciones
+            selecciones.forEach(sel => {
+                if (sel.huespedes && sel.huespedes.length > 0) {
+                    sel.huespedes.forEach(h => setHuespedes.add(h.idHuesped));
+                }
+            });
+            const listaIdsHuespedes = Array.from(setHuespedes);
+
+            // 3. Calcular cantidad de noches (basado en la primera selección)
+            // Asumimos que todas tienen las mismas fechas en este paso del flujo
+            const fechaInicio = selecciones[0].fechaDesde;
+            const fechaFin = selecciones[0].fechaHasta;
+            const d1 = new Date(fechaInicio);
+            const d2 = new Date(fechaFin);
+            const diffTime = Math.abs(d2.getTime() - d1.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            // 4. Armar el Payload exacto para CrearEstadiaRequestDTO.java
+            const payload = {
+                checkIn: fechaInicio,         // String "YYYY-MM-DD" viaja bien a LocalDate
+                checkOut: fechaFin,           // String "YYYY-MM-DD" viaja bien a LocalDate
+                cantNoches: diffDays,
+                idReserva: null,              // Por ahora null (Walk-in)
+                idsHabitaciones: listaIdsHabitaciones,
+                idsHuespedes: listaIdsHuespedes
+            };
+
+            try {
+                const res = await fetch("http://localhost:8080/Estadia/CheckIn", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    setModalExitoOpen(true);
+                } else {
+                    const errorText = await res.text();
+                    // Intentamos parsear si viene como JSON de error
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        alert("Error: " + (errorJson.mensaje || errorText));
+                    } catch {
+                        alert("Error al procesar Check-In: " + errorText);
+                    }
+                }
+            } catch (error) {
+                console.error(error);
+                alert("Error de conexión con el servidor.");
+            } finally {
+                setLoading(false);
+            }
+        };
 
     // --- NUEVO FLUJO POST-EXITO ---
     const handleCargarOtra = () => {

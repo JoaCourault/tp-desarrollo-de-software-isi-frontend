@@ -219,18 +219,67 @@ export function RoomManagement() {
     };
 
     const handleConfirmarReserva = async () => {
-        if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
-            alert("Complete todos los campos del huésped");
-            return;
-        }
-        alert("¡Reserva creada exitosamente!");
-        setSelecciones([]);
-        setModalOpen(false);
-        setGuestData({ nombre: "", apellido: "", telefono: "" });
-        setSearched(false);
-        setDesde("");
-        setHasta("");
-    };
+            // 1. Validaciones de formulario
+            if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
+                alert("Complete todos los campos del huésped");
+                return;
+            }
+
+            // 2. Armar el Payload para el Backend
+            // Basado en tu ReservaService.java y CrearReservaRequestDTO
+            const payload = {
+                nombreCliente: guestData.nombre,
+                apellidoCliente: guestData.apellido,
+                telefonoCliente: guestData.telefono,
+                reservas: selecciones.map((sel) => ({
+                    idHabitacion: sel.idHabitacion, // Aseguramos que sea número
+                    fechaDesde: sel.fechaDesde,             // Formato YYYY-MM-DD
+                    fechaHasta: sel.fechaHasta              // Formato YYYY-MM-DD
+                }))
+            };
+
+            setLoading(true); // Reusamos el estado loading para bloquear botones
+
+            try {
+                // 3. Llamada a la API
+                const res = await fetch("http://localhost:8080/Reserva/Crear", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                // 4. Manejo de Respuesta
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(errorText || "Error de conexión con el servidor");
+                }
+
+                const data = await res.json();
+
+                // Asumimos que tu Resultado tiene { id: 0, mensaje: "..." } para éxito
+                if (data.id === 0) {
+                    alert("¡Reserva creada exitosamente!");
+
+                    // Limpieza de estado (Solo si fue exitoso)
+                    setSelecciones([]);
+                    setModalOpen(false);
+                    setGuestData({ nombre: "", apellido: "", telefono: "" });
+
+                    // Opcional: Recargar la grilla para ver lo nuevo pintado de rojo
+                    handleBuscar({ preventDefault: () => {} } as React.FormEvent);
+                } else {
+                    alert("Error al crear reserva: " + data.mensaje);
+                }
+
+            } catch (error: any) {
+                console.error(error);
+                alert("Ocurrió un error: " + error.message);
+            } finally {
+                setLoading(false);
+            }
+        };
 
     // --- RENDER ---
     return (

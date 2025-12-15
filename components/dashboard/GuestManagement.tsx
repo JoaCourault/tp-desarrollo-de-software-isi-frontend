@@ -100,7 +100,7 @@ function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
                     numero: String(numVal),
                     departamento: String(data.get("departamento") ?? ""),
                     piso: String(data.get("piso") ?? ""),
-                    cp: String(cpVal),
+                    codigoPostal: String(cpVal),
                     localidad: String(data.get("localidad") ?? ""),
                     provincia: String(data.get("provincia") ?? ""),
                     pais: String(data.get("pais") ?? ""),
