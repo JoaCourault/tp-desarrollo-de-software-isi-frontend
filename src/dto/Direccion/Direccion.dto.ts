@@ -1,10 +1,10 @@
 export interface DireccionDTO {
-    idDireccion: string | null;   // backend: id_direccion
+    id?: string | null;   // backend: id_direccion
     calle: string;
     numero: string | number;
     departamento: string | null;  // backend: depto
-    piso: number | null;          // backend: Integer
-    cp: string;                   // backend: cp (string)
+    piso: string | null;          // backend: Integer
+    codigoPostal: string;                   // backend: cp (string)
     localidad: string;
     provincia: string;
     pais: string;

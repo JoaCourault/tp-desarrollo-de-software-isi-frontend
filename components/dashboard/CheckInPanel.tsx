@@ -31,6 +31,18 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
+import ModalAlert from "@/components/modalAlert/modalAlert";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import {
     GrillaDisponibilidad,
     type HabitacionDisponibilidad,
@@ -43,6 +55,7 @@ interface Huesped {
     nombre: string;
     apellido: string;
     numDoc: string;
+    fechaNac: string; // Importante para validar edad
     tipoDocumento?: { tipoDocumento: string };
 }
 
@@ -82,13 +95,35 @@ const formatearFecha = (fechaStr: string) => {
     }).format(date);
 };
 
+// Validar Mayoría de Edad (18+)
+const esMayorDeEdad = (fechaNacString: string) => {
+    if (!fechaNacString) return false;
+    const hoy = new Date();
+    const nacimiento = new Date(fechaNacString);
+    if (isNaN(nacimiento.getTime())) return false;
+    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const mes = hoy.getMonth() - nacimiento.getMonth();
+    if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+        edad--;
+    }
+    return edad >= 18;
+};
+
+// --- HELPER DE BÚSQUEDA ROBUSTA (LA SOLUCIÓN) ---
+// Busca la habitación probando idHabitacion O id_habitacion
+const findHabitacionById = (lista: HabitacionDisponibilidad[], idBusqueda: string | null) => {
+    if (!idBusqueda) return undefined;
+    return lista.find(h => {
+        const idReal = h.habitacion.idHabitacion || h.habitacion.id_habitacion;
+        return idReal === idBusqueda;
+    });
+};
+
 // --- COMPONENTE PRINCIPAL ---
 export default function CheckInPanel() {
     // ESTADOS FLUJO
     const [paso, setPaso] = useState<"GRILLA" | "HUESPEDES">("GRILLA");
     const [loading, setLoading] = useState(false);
-
-    // --- CAMBIO 1: NUEVO ESTADO DE BLOQUEO ---
     const [checkInExitoso, setCheckInExitoso] = useState(false);
 
     // ESTADOS GRILLA
@@ -106,15 +141,25 @@ export default function CheckInPanel() {
     const [selecciones, setSelecciones] = useState<SeleccionCheckIn[]>([]);
     const [titularGlobal, setTitularGlobal] = useState<Huesped | null>(null);
 
-    // UI & MODALES
+    // UI & MODALES LOGICOS
     const [habitacionActivaIndex, setHabitacionActivaIndex] = useState<number>(0);
     const [modalConflicto, setModalConflicto] = useState(false);
     const [conflictDetails, setConflictDetails] = useState<DisponibilidadDia[]>([]);
     const [alertPendingOpen, setAlertPendingOpen] = useState(false);
-
-    // Modales Salida y Éxito
     const [modalSalirOpen, setModalSalirOpen] = useState(false);
     const [modalExitoOpen, setModalExitoOpen] = useState(false);
+
+    // ESTADOS PARA MODAL ALERT
+    const [alertData, setAlertData] = useState<{
+        open: boolean;
+        type: 'info' | 'success' | 'warning' | 'error';
+        title: string;
+        message: string;
+    }>({ open: false, type: 'info', title: '', message: '' });
+
+    const showAlert = (type: 'info' | 'success' | 'warning' | 'error', title: string, message: string) => {
+        setAlertData({ open: true, type, title, message });
+    };
 
     // BÚSQUEDA HUESPEDES
     const [searchApellido, setSearchApellido] = useState("");
@@ -131,7 +176,6 @@ export default function CheckInPanel() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
-                // Si ya fue exitoso, no permitimos limpiar selección con Escape para evitar inconsistencias visuales
                 if (!checkInExitoso) {
                     setTempSelect({ start: null, end: null, roomId: null });
                 }
@@ -139,13 +183,13 @@ export default function CheckInPanel() {
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [checkInExitoso]); // Dependencia agregada
+    }, [checkInExitoso]);
 
     // --- LOGICA DE GRILLA ---
     const handleBuscarDisponibilidad = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (desde !== getTodayString()) {
-            alert("El Check-In debe realizarse con fecha de inicio HOY.");
+            showAlert("warning", "Fecha Incorrecta", "El Check-In debe realizarse con fecha de inicio HOY.");
             setDesde(getTodayString());
             return;
         }
@@ -166,6 +210,7 @@ export default function CheckInPanel() {
         } catch (error) {
             console.error(error);
             setGridData([]);
+            showAlert("error", "Error de Conexión", "No se pudo conectar con el servidor.");
         } finally {
             setLoading(false);
         }
@@ -199,8 +244,14 @@ export default function CheckInPanel() {
 
     const intentarAgregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
-        const hab = gridData.find((h) => h.habitacion.id_habitacion === tempSelect.roomId);
-        if (!hab) return;
+
+        // CORRECCIÓN 1: Usar findHabitacionById
+        const hab = findHabitacionById(gridData, tempSelect.roomId);
+
+        if (!hab) {
+            console.error("Error: No se encontró la habitación con ID:", tempSelect.roomId);
+            return;
+        }
 
         const start = new Date(tempSelect.start);
         const end = new Date(tempSelect.end);
@@ -210,7 +261,10 @@ export default function CheckInPanel() {
         });
 
         const tieneBloqueos = diasRango.some((d) => d.estado === "OCUPADA" || d.estado === "MANTENIMIENTO");
-        if (tieneBloqueos) { alert("El rango contiene días bloqueados."); return; }
+        if (tieneBloqueos) {
+            showAlert("error", "Selección Inválida", "El rango seleccionado contiene días bloqueados.");
+            return;
+        }
 
         const tieneReservas = diasRango.some((d) => d.estado === "RESERVADA");
         const tieneDisponibles = diasRango.some((d) => d.estado === "DISPONIBLE");
@@ -228,7 +282,8 @@ export default function CheckInPanel() {
     };
 
     const confirmarAgregar = (esOcuparIgual: boolean) => {
-        const hab = gridData.find((h) => h.habitacion.id_habitacion === tempSelect.roomId);
+        // CORRECCIÓN 2: Usar findHabitacionById
+        const hab = findHabitacionById(gridData, tempSelect.roomId);
         if (!hab) return;
 
         setSelecciones((prev) => [
@@ -293,7 +348,7 @@ export default function CheckInPanel() {
             const data = await res.json();
             setListaHuespedes(data.huespedesEncontrados || []);
         } catch (error) {
-            alert("Error al buscar huéspedes");
+            showAlert("error", "Error", "Ocurrió un error al buscar huéspedes.");
         }
     };
 
@@ -306,7 +361,7 @@ export default function CheckInPanel() {
     };
 
     const toggleHuespedEnActiva = (huesped: Huesped) => {
-        if (checkInExitoso) return; // Protección extra
+        if (checkInExitoso) return;
 
         const index = habitacionActivaIndex;
         if (index < 0 || index >= selecciones.length) return;
@@ -316,7 +371,7 @@ export default function CheckInPanel() {
         );
 
         if (estaEnOtra) {
-            alert(`El huésped ${huesped.apellido} ya está asignado a otra habitación.`);
+            showAlert("warning", "Huésped Duplicado", `El huésped ${huesped.apellido} ya está asignado a otra habitación.`);
             return;
         }
 
@@ -344,18 +399,18 @@ export default function CheckInPanel() {
 
     // --- PROCESAMIENTO FINAL ---
     const procesarCheckIn = async () => {
-        if (checkInExitoso) return; // Evitar doble submit si el botón no se deshabilitó a tiempo
+        if (checkInExitoso) return;
 
         if (!titularGlobal) {
-            alert("Debe seleccionar un Titular responsable para el Check-In.");
+            showAlert("warning", "Falta Titular", "Debe seleccionar un Titular responsable para el Check-In.");
             return;
         }
 
         const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
         if (habitacionesVacias.length > 0) {
-            if (!confirm(`Hay ${habitacionesVacias.length} habitaciones sin huéspedes asignados. ¿Desea continuar igual?`)) {
-                return;
-            }
+            const listaNumeros = habitacionesVacias.map(s => s.numero).join(", ");
+            showAlert("error", "Datos Faltantes", `No se puede procesar. Las siguientes habitaciones no tienen huéspedes asignados: ${listaNumeros}`);
+            return;
         }
 
         setLoading(true);
@@ -379,43 +434,37 @@ export default function CheckInPanel() {
             });
 
             if (res.ok) {
-                // EXITO: Abrir Modal y BLOQUEAR ESTADO
-                setCheckInExitoso(true); // <--- CAMBIO 2: Bloquear edición
+                setCheckInExitoso(true);
                 setModalExitoOpen(true);
             } else {
                 const errorText = await res.text();
-                alert("Error al procesar Check-In: " + errorText);
+                showAlert("error", "Error en Check-In", errorText);
             }
         } catch (error) {
             console.error(error);
-            alert("Error de conexión con el servidor.");
+            showAlert("error", "Error de Conexión", "No se pudo conectar con el servidor.");
         } finally {
             setLoading(false);
         }
     };
 
-    // --- NUEVO FLUJO POST-EXITO ---
     const handleCargarOtra = () => {
-        // 1. Limpiar datos de sesión actual
         setSelecciones([]);
         setTitularGlobal(null);
         setListaHuespedes([]);
         setTempSelect({ start: null, end: null, roomId: null });
-
-        // --- CAMBIO 3: Resetear bloqueo para la nueva sesión ---
         setCheckInExitoso(false);
         setModalExitoOpen(false);
-
-        // 2. Volver a la grilla
         setPaso("GRILLA");
-
-        // 3. RECARGAR DATOS DEL BACKEND
         realizarBusquedaGrilla();
     };
 
     const handleFinalizarSalir = () => {
         window.location.reload();
     };
+
+    // CORRECCIÓN 3: Helper para obtener la habitación seleccionada y renderizar su número
+    const habitacionSeleccionadaPanel = findHabitacionById(gridData, tempSelect.roomId);
 
     // ===================== RENDER =====================
     return (
@@ -500,7 +549,10 @@ export default function CheckInPanel() {
                                         {tempSelect.roomId ? (
                                             <div className="space-y-3">
                                                 <div className="flex justify-between items-center bg-white p-2 rounded border border-blue-200">
-                                                    <span className="font-bold text-blue-900">Hab {gridData.find((h) => h.habitacion.id_habitacion === tempSelect.roomId)?.habitacion.numero}</span>
+                                                    {/* USO DE LA VARIABLE CORREGIDA PARA MOSTRAR NUMERO */}
+                                                    <span className="font-bold text-blue-900">
+                                                        Hab {habitacionSeleccionadaPanel?.habitacion.numero || "?"}
+                                                    </span>
                                                     <div className="text-xs text-right">
                                                         <div className="text-gray-500">Entrada: {formatearFecha(tempSelect.start!)}</div>
                                                         {tempSelect.end && <div className="text-gray-500">Salida: {formatearFecha(tempSelect.end)}</div>}
@@ -596,14 +648,18 @@ export default function CheckInPanel() {
                                 {selecciones.map((sel, idx) => {
                                     const isActive = idx === habitacionActivaIndex;
                                     const ocupantes = sel.huespedes || [];
+                                    const estaVacia = ocupantes.length === 0;
+
                                     return (
                                         <div
                                             key={idx}
                                             onClick={() => { setHabitacionActivaIndex(idx); limpiarFormularioHuesped(); }}
-                                            className={`p-3 rounded-lg border transition-all cursor-pointer relative ${isActive ? "bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-200" : "bg-white border-gray-200 hover:border-blue-200"}`}
+                                            className={`p-3 rounded-lg border transition-all cursor-pointer relative ${isActive ? "bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-200" : "bg-white border-gray-200 hover:border-blue-200"} ${estaVacia && !isActive ? "border-red-200 bg-red-50/30" : ""}`}
                                         >
                                             <div className="flex justify-between items-start mb-2">
-                                                <span className="font-bold text-gray-800 text-lg">Hab {sel.numero}</span>
+                                                <span className={`font-bold text-lg ${estaVacia ? "text-red-700" : "text-gray-800"}`}>
+                                                    Hab {sel.numero} {estaVacia && "⚠️"}
+                                                </span>
                                                 {isActive && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full">Editando</span>}
                                             </div>
                                             <hr className="my-2 border-gray-200" />
@@ -615,7 +671,7 @@ export default function CheckInPanel() {
                                                             {a.apellido}
                                                         </span>
                                                     ))}
-                                                    {ocupantes.length === 0 && <span className="text-[10px] text-gray-400 italic">Sin huéspedes asignados</span>}
+                                                    {ocupantes.length === 0 && <span className="text-[10px] text-red-500 italic font-medium">Requerido: Agregar al menos 1</span>}
                                                 </div>
                                             </div>
                                         </div>
@@ -661,7 +717,18 @@ export default function CheckInPanel() {
                                                     size="sm"
                                                     variant={isTitular ? "default" : "secondary"}
                                                     className={isTitular ? "bg-green-600" : "bg-green-50 text-green-700 hover:bg-green-100 border border-green-200"}
-                                                    onClick={() => setTitularGlobal(h)}
+                                                    // VALIDACION EDAD EN BOTON TITULAR
+                                                    onClick={() => {
+                                                        if (!h.fechaNac) {
+                                                            showAlert("warning", "Datos Incompletos", `El huésped ${h.nombre} no tiene fecha de nacimiento.`);
+                                                            return;
+                                                        }
+                                                        if (!esMayorDeEdad(h.fechaNac)) {
+                                                            showAlert("warning", "Restricción de Edad", `El huésped ${h.nombre} es menor de edad y no puede ser Titular.`);
+                                                            return;
+                                                        }
+                                                        setTitularGlobal(h);
+                                                    }}
                                                     disabled={isTitular || checkInExitoso}
                                                 >
                                                     {isTitular ? "Es Titular" : "Asignar Titular"}
@@ -703,7 +770,6 @@ export default function CheckInPanel() {
                                     <Button
                                         className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
                                         onClick={procesarCheckIn}
-                                        // --- CAMBIO 4: Deshabilitamos si ya fue exitoso ---
                                         disabled={loading || !titularGlobal || checkInExitoso}
                                     >
                                         <Save className="h-4 w-4 mr-2" />
@@ -734,42 +800,39 @@ export default function CheckInPanel() {
                 </DialogContent>
             </Dialog>
 
-            {/* 2. Modal SELECCIÓN PENDIENTE */}
-            <Dialog open={alertPendingOpen} onOpenChange={setAlertPendingOpen}>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>Selección Pendiente</DialogTitle><DialogDescription>Tienes una habitación marcada en la grilla sin agregar a la lista.</DialogDescription></DialogHeader>
-                    <DialogFooter><Button variant="ghost" onClick={handleDiscardAndContinue} className="text-red-500">Descartar</Button><Button onClick={handleAddAndContinue}>Agregar</Button></DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* 2. Modal SELECCIÓN PENDIENTE (Reemplazado por AlertDialog) */}
+            <AlertDialog open={alertPendingOpen} onOpenChange={setAlertPendingOpen}>
+                <AlertDialogContent className="bg-amber-50 border-amber-200">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-amber-800 flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Selección Pendiente</AlertDialogTitle>
+                        <AlertDialogDescription className="text-amber-700">Tienes una habitación seleccionada en la grilla que no has agregado a tu lista.<br /><br />¿Deseas agregarla al Check-In o descartarla?</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setAlertPendingOpen(false)} className="border-amber-200 text-amber-900 hover:bg-amber-100">Cancelar</AlertDialogCancel>
+                        <Button variant="ghost" onClick={handleDiscardAndContinue} className="text-red-600 hover:bg-red-100 hover:text-red-700">Descartar</Button>
+                        <AlertDialogAction onClick={handleAddAndContinue} className="bg-green-600 text-white hover:bg-green-700 border-green-700">Agregar y Continuar</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
-            {/* 3. Modal SALIR (Cancelar) */}
-            <Dialog open={modalSalirOpen} onOpenChange={setModalSalirOpen}>
-                <DialogContent className="border-red-200 bg-red-50">
-                    <DialogHeader>
-                        <DialogTitle className="text-red-700 flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5" />
-                            ¿Cancelar todo el proceso?
-                        </DialogTitle>
-                        <DialogDescription className="text-red-600">
-                            Se perderán todos los datos ingresados hasta ahora.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setModalSalirOpen(false)} className="border-red-200 text-red-700 hover:bg-red-100">
-                            Volver
-                        </Button>
-                        <Button className="bg-red-700 hover:bg-red-800 text-white" onClick={() => window.location.reload()}>
-                            Sí, Cancelar y Salir
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* 3. Modal SALIR (Reemplazado por AlertDialog) */}
+            <AlertDialog open={modalSalirOpen} onOpenChange={setModalSalirOpen}>
+                <AlertDialogContent className="bg-red-50 border-red-200">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-red-800 flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> ¿Cancelar todo el proceso?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-red-700">Se perderán todos los datos ingresados hasta ahora y volverá a la pantalla inicial.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setModalSalirOpen(false)} className="border-red-200 text-red-900 hover:bg-red-100">Volver</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => window.location.reload()} className="bg-red-600 text-white hover:bg-red-700 border-red-700">Sí, Cancelar y Salir</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
-            {/* 4. Modal de ÉXITO (NUEVO y MODIFICADO) */}
+            {/* 4. Modal de ÉXITO */}
             <Dialog
                 open={modalExitoOpen}
                 onOpenChange={(open) => {
-                    // --- CAMBIO 5: Si intentan cerrar por fuera, forzamos la recarga ---
                     if (!open) {
                         handleCargarOtra();
                     }
@@ -777,7 +840,6 @@ export default function CheckInPanel() {
             >
                 <DialogContent
                     className="border-green-200 bg-green-50 sm:max-w-md"
-                    // Opcional: Bloquear clicks fuera y ESC para obligar a usar botones
                     onPointerDownOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={(e) => e.preventDefault()}
                 >
@@ -793,7 +855,7 @@ export default function CheckInPanel() {
 
                     <div className="py-4">
                         <p className="text-sm text-gray-600 text-center font-medium">
-                            ¿Desea cargar otra habitación ahora?
+                            ¿Desea cargar otro Check-In ahora?
                         </p>
                     </div>
 
@@ -809,11 +871,21 @@ export default function CheckInPanel() {
                             onClick={handleCargarOtra}
                             className="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white"
                         >
-                            Sí, cargar otra
+                            Sí, cargar otro
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* MODAL DE ALERTAS GENERICA (Reemplazo de window.alert) */}
+            <ModalAlert
+                open={alertData.open}
+                title={alertData.title}
+                message={alertData.message}
+                type={alertData.type}
+                onOk={() => setAlertData(prev => ({ ...prev, open: false }))}
+                okText="Aceptar"
+            />
 
         </div>
     );

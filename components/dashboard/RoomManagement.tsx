@@ -25,6 +25,18 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 
+import ModalAlert from "@/components/modalAlert/modalAlert";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import {
     GrillaDisponibilidad,
     type HabitacionDisponibilidad,
@@ -43,6 +55,15 @@ const isDatePast = (dateStr: string) => {
     today.setHours(0, 0, 0, 0);
     return checkDate < today;
 };
+
+// HELPER: Busca una habitación en la lista manejando ambos tipos de ID
+const findHabitacionById = (lista: HabitacionDisponibilidad[], idBusqueda: string | null) => {
+    if (!idBusqueda) return undefined;
+    return lista.find(h => {
+        const idReal = h.habitacion.idHabitacion || h.habitacion.id_habitacion;
+        return idReal === idBusqueda;
+    });
+}; //uso id_habitacion porq el back me devuelve id_habitacion
 
 export function RoomManagement() {
     // Estados de búsqueda
@@ -63,14 +84,31 @@ export function RoomManagement() {
     // Lista de reservas
     const [selecciones, setSelecciones] = useState<Seleccion[]>([]);
 
-    // Modales
-    const [modalOpen, setModalOpen] = useState(false);
-    const [alertOpen, setAlertOpen] = useState(false);
+    // Modales de Flujo
+    const [guestFormOpen, setGuestFormOpen] = useState(false);
+    const [pendingSelectionOpen, setPendingSelectionOpen] = useState(false);
+
+    // Datos del Huésped
     const [guestData, setGuestData] = useState({
         nombre: "",
         apellido: "",
         telefono: "",
     });
+
+    // Estados para Modal Alert
+    const [infoOpen, setInfoOpen] = useState(false);
+    const [infoType, setInfoType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
+    const [infoTitle, setInfoTitle] = useState('');
+    const [infoMessage, setInfoMessage] = useState('');
+    const [infoOnOk, setInfoOnOk] = useState<(() => void) | null>(null);
+
+    const showInfo = (type: 'info' | 'success' | 'warning' | 'error', title: string, message: string, onOk?: () => void) => {
+        setInfoType(type);
+        setInfoTitle(title);
+        setInfoMessage(message);
+        if (onOk) setInfoOnOk(() => onOk); else setInfoOnOk(null);
+        setInfoOpen(true);
+    };
 
     const formatearFecha = (fechaStr: string) => {
         if (!fechaStr) return "-";
@@ -81,7 +119,6 @@ export function RoomManagement() {
         }).format(date);
     };
 
-    // ESC para cancelar selección
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
@@ -94,11 +131,10 @@ export function RoomManagement() {
 
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
-
         if (!desde || !hasta) return;
 
         if (new Date(desde) > new Date(hasta)) {
-            alert("La fecha 'Desde' no puede ser mayor a 'Hasta'");
+            showInfo("warning", "Fechas Incorrectas", "La fecha 'Desde' no puede ser mayor a 'Hasta'.");
             return;
         }
 
@@ -118,12 +154,12 @@ export function RoomManagement() {
             console.error(err);
             setGridData([]);
             setSearched(true);
+            showInfo("error", "Error de Conexión", "No se pudo obtener la disponibilidad.");
         } finally {
             setLoading(false);
         }
     };
 
-    // Click en celda de disponibilidad
     const handleCellClick = (
         roomId: string,
         dateStr: string,
@@ -134,11 +170,7 @@ export function RoomManagement() {
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
         if (estado === "RESERVADA") {
-            alert(
-                `La habitación ${numero} ya está reservada el día ${formatearFecha(
-                    dateStr
-                )}.`
-            );
+            showInfo("info", "Habitación Reservada", `La habitación ${numero} ya está reservada el día ${formatearFecha(dateStr)}.`);
             return;
         }
 
@@ -162,11 +194,8 @@ export function RoomManagement() {
                 to = start;
             }
 
-            // Validar conflictos dentro del rango
-            const habitacionActual = gridData.find(
-                (h) =>
-                    (h.habitacion.id_habitacion ?? h.habitacion.idHabitacion) === roomId
-            );
+            // CORRECCIÓN: Usamos el helper para encontrar la habitación de forma segura
+            const habitacionActual = findHabitacionById(gridData, roomId);
 
             if (habitacionActual) {
                 const diaConflicto = habitacionActual.disponibilidad.find((dia) => {
@@ -174,13 +203,12 @@ export function RoomManagement() {
                     const esPasado = isDatePast(dia.fecha);
                     return (
                         enRango &&
-                        (["OCUPADA", "MANTENIMIENTO", "RESERVADA"].includes(dia.estado) ||
-                            esPasado)
+                        (["OCUPADA", "MANTENIMIENTO", "RESERVADA"].includes(dia.estado) || esPasado)
                     );
                 });
 
                 if (diaConflicto) {
-                    alert("Rango inválido (contiene días ocupados o pasados).");
+                    showInfo("warning", "Rango Inválido", "La selección incluye días ocupados o pasados.");
                     setTempSelect({ start: null, end: null, roomId: null });
                     return;
                 }
@@ -190,19 +218,19 @@ export function RoomManagement() {
             return;
         }
 
-        // Si ya había un rango completo, reiniciar
         setTempSelect({ start: dateStr, end: null, roomId });
     };
 
     const agregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
 
-        const hab = gridData.find(
-            (h) =>
-                (h.habitacion.id_habitacion ?? h.habitacion.idHabitacion) ===
-                tempSelect.roomId
-        );
-        if (!hab) return;
+        // CORRECCIÓN: Usamos el helper para encontrar la habitación
+        const hab = findHabitacionById(gridData, tempSelect.roomId);
+
+        if (!hab) {
+            console.error("No se encontró la habitación con ID:", tempSelect.roomId);
+            return;
+        }
 
         setSelecciones((prev) => [
             ...prev,
@@ -223,33 +251,32 @@ export function RoomManagement() {
 
     const checkPendingSelection = () => {
         if (tempSelect.start && tempSelect.end && tempSelect.roomId) {
-            setAlertOpen(true);
+            setPendingSelectionOpen(true);
         } else {
-            setModalOpen(true);
+            setGuestFormOpen(true);
         }
     };
 
     const handleAddAndProceed = () => {
         agregarSeleccion();
-        setAlertOpen(false);
-        setModalOpen(true);
+        setPendingSelectionOpen(false);
+        setGuestFormOpen(true);
     };
 
     const handleDiscardAndProceed = () => {
         setTempSelect({ start: null, end: null, roomId: null });
-        setAlertOpen(false);
-        setModalOpen(true);
+        setPendingSelectionOpen(false);
+        setGuestFormOpen(true);
     };
 
-    // ✅ AHORA SÍ PERSISTE: POST al backend
     const handleConfirmarReserva = async () => {
         if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
-            alert("Complete todos los campos del huésped");
+            showInfo("warning", "Datos Incompletos", "Por favor, complete todos los campos del huésped.");
             return;
         }
 
         if (selecciones.length === 0) {
-            alert("No hay habitaciones seleccionadas");
+            showInfo("warning", "Sin Selecciones", "No hay habitaciones seleccionadas.");
             return;
         }
 
@@ -276,23 +303,27 @@ export function RoomManagement() {
                 throw new Error(text || "Error al crear la reserva");
             }
 
-            alert("¡Reserva creada exitosamente!");
+            setGuestFormOpen(false);
 
-            // limpiar estado UI
-            setSelecciones([]);
-            setModalOpen(false);
-            setGuestData({ nombre: "", apellido: "", telefono: "" });
-            setSearched(false);
-            setDesde("");
-            setHasta("");
-            setTempSelect({ start: null, end: null, roomId: null });
+            showInfo("success", "Reserva Creada", "La reserva se ha registrado exitosamente.", () => {
+                setSelecciones([]);
+                setGuestData({ nombre: "", apellido: "", telefono: "" });
+                setSearched(false);
+                setDesde("");
+                setHasta("");
+                setTempSelect({ start: null, end: null, roomId: null });
+            });
+
         } catch (err) {
             console.error(err);
-            alert(
-                "No se pudo crear la reserva. Detalle: " + (err as Error).message
-            );
+            showInfo("error", "Error", "No se pudo crear la reserva. " + (err as Error).message);
         }
     };
+
+    // Helper para renderizar número de habitación en el panel lateral
+    const selectedRoomNumber = tempSelect.roomId
+        ? findHabitacionById(gridData, tempSelect.roomId)?.habitacion.numero
+        : null;
 
     return (
         <div className="container mx-auto max-w-7xl p-4 sm:p-6 space-y-8 animate-in fade-in duration-500 pb-10 min-h-screen">
@@ -312,32 +343,16 @@ export function RoomManagement() {
                         </div>
                     </div>
 
-                    <form
-                        onSubmit={handleBuscar}
-                        className="flex flex-col sm:flex-row gap-4 items-end"
-                    >
+                    <form onSubmit={handleBuscar} className="flex flex-col sm:flex-row gap-4 items-end">
                         <div className="w-full sm:w-1/4">
                             <label className="text-sm font-medium text-gray-700">Desde</label>
-                            <Input
-                                type="date"
-                                value={desde}
-                                onChange={(e) => setDesde(e.target.value)}
-                                required
-                            />
+                            <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} required />
                         </div>
                         <div className="w-full sm:w-1/4">
                             <label className="text-sm font-medium text-gray-700">Hasta</label>
-                            <Input
-                                type="date"
-                                value={hasta}
-                                onChange={(e) => setHasta(e.target.value)}
-                                required
-                            />
+                            <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} required />
                         </div>
-                        <Button
-                            className="bg-rose-900 text-white hover:bg-rose-800 w-full sm:w-auto"
-                            disabled={loading}
-                        >
+                        <Button className="bg-rose-900 text-white hover:bg-rose-800 w-full sm:w-auto" disabled={loading}>
                             <Search className="h-4 w-4 mr-2" />
                             {loading ? "Buscando..." : "Buscar Disponibilidad"}
                         </Button>
@@ -354,12 +369,8 @@ export function RoomManagement() {
                                     <Bed className="h-4 w-4" /> Estado de Habitaciones
                                 </h3>
                                 <span className="text-xs text-gray-400 hidden lg:inline-block">
-                  Presiona{" "}
-                                    <kbd className="font-mono bg-gray-100 px-1 rounded border">
-                    ESC
-                  </kbd>{" "}
-                                    para cancelar selección
-                </span>
+                                    Presiona <kbd className="font-mono bg-gray-100 px-1 rounded border">ESC</kbd> para cancelar selección
+                                </span>
                             </div>
 
                             <GrillaDisponibilidad
@@ -374,41 +385,24 @@ export function RoomManagement() {
                     </div>
 
                     <aside className="w-full lg:w-80 shrink-0 space-y-4 sticky top-6 animate-in slide-in-from-right duration-500">
-                        <Card
-                            className={`border-2 transition-all shadow-md ${
-                                tempSelect.roomId
-                                    ? "border-blue-400 bg-blue-50/50"
-                                    : "border-gray-100 bg-gray-50 opacity-80"
-                            }`}
-                        >
+                        <Card className={`border-2 transition-all shadow-md ${tempSelect.roomId ? "border-blue-400 bg-blue-50/50" : "border-gray-100 bg-gray-50 opacity-80"}`}>
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm font-bold uppercase text-gray-500 flex items-center gap-2">
-                                    <CalendarDays className="h-4 w-4" />
-                                    Selección Actual
+                                    <CalendarDays className="h-4 w-4" /> Selección Actual
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {tempSelect.roomId ? (
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center bg-white p-2 rounded border border-blue-200">
-                      <span className="font-bold text-blue-900">
-                        Hab{" "}
-                          {
-                              gridData.find(
-                                  (h) =>
-                                      (h.habitacion.id_habitacion ??
-                                          h.habitacion.idHabitacion) === tempSelect.roomId
-                              )?.habitacion.numero
-                          }
-                      </span>
+                                            {/* CORRECCIÓN VISUAL: Usamos la variable calculada arriba */}
+                                            <span className="font-bold text-blue-900">
+                                                Hab {selectedRoomNumber || "?"}
+                                            </span>
                                             <div className="text-xs text-right">
-                                                <div className="text-gray-500">
-                                                    Entrada: {formatearFecha(tempSelect.start!)}
-                                                </div>
+                                                <div className="text-gray-500">Entrada: {formatearFecha(tempSelect.start!)}</div>
                                                 {tempSelect.end && (
-                                                    <div className="text-gray-500">
-                                                        Salida: {formatearFecha(tempSelect.end)}
-                                                    </div>
+                                                    <div className="text-gray-500">Salida: {formatearFecha(tempSelect.end)}</div>
                                                 )}
                                             </div>
                                         </div>
@@ -418,15 +412,11 @@ export function RoomManagement() {
                                             onClick={agregarSeleccion}
                                             disabled={!tempSelect.end}
                                         >
-                                            {tempSelect.end
-                                                ? "Agregar a la Lista"
-                                                : "Seleccione fecha fin"}
+                                            {tempSelect.end ? "Agregar a la Lista" : "Seleccione fecha fin"}
                                         </Button>
                                     </div>
                                 ) : (
-                                    <p className="text-xs text-gray-400 italic">
-                                        Haz click en la grilla para comenzar una selección.
-                                    </p>
+                                    <p className="text-xs text-gray-400 italic">Haz click en la grilla para comenzar una selección.</p>
                                 )}
                             </CardContent>
                         </Card>
@@ -434,43 +424,25 @@ export function RoomManagement() {
                         <Card className="border-gray-200 shadow-sm h-fit max-h-[500px] flex flex-col">
                             <CardHeader className="pb-3 border-b bg-gray-50">
                                 <CardTitle className="text-base font-semibold text-gray-800 flex justify-between items-center">
-                  <span className="flex items-center gap-2">
-                    <ListChecks className="h-4 w-4" /> Mis Reservas
-                  </span>
-                                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                    {selecciones.length}
-                  </span>
+                                    <span className="flex items-center gap-2"><ListChecks className="h-4 w-4" /> Mis Reservas</span>
+                                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{selecciones.length}</span>
                                 </CardTitle>
                             </CardHeader>
 
                             <CardContent className="p-0 overflow-y-auto flex-1 custom-scrollbar">
                                 {selecciones.length === 0 ? (
-                                    <div className="p-6 text-center text-sm text-gray-400">
-                                        No hay habitaciones seleccionadas.
-                                    </div>
+                                    <div className="p-6 text-center text-sm text-gray-400">No hay habitaciones seleccionadas.</div>
                                 ) : (
                                     <div className="divide-y divide-gray-100">
                                         {selecciones.map((sel, i) => (
-                                            <div
-                                                key={i}
-                                                className="p-3 hover:bg-gray-50 transition flex justify-between items-center group"
-                                            >
+                                            <div key={i} className="p-3 hover:bg-gray-50 transition flex justify-between items-center group">
                                                 <div>
-                                                    <div className="font-semibold text-gray-800 text-sm">
-                                                        Habitación {sel.numero}
-                                                    </div>
+                                                    <div className="font-semibold text-gray-800 text-sm">Habitación {sel.numero}</div>
                                                     <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                                                        {formatearFecha(sel.fechaDesde)}{" "}
-                                                        <ArrowRight className="h-3 w-3" />{" "}
-                                                        {formatearFecha(sel.fechaHasta)}
+                                                        {formatearFecha(sel.fechaDesde)} <ArrowRight className="h-3 w-3" /> {formatearFecha(sel.fechaHasta)}
                                                     </div>
                                                 </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                                                    onClick={() => eliminarSeleccion(i)}
-                                                >
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={() => eliminarSeleccion(i)}>
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
@@ -481,10 +453,7 @@ export function RoomManagement() {
 
                             {(selecciones.length > 0 || (tempSelect.start && tempSelect.end)) && (
                                 <div className="p-4 border-t bg-gray-50">
-                                    <Button
-                                        className="w-full bg-rose-900 hover:bg-rose-800 text-white shadow-md"
-                                        onClick={checkPendingSelection}
-                                    >
+                                    <Button className="w-full bg-rose-900 hover:bg-rose-800 text-white shadow-md" onClick={checkPendingSelection}>
                                         Confirmar Todo
                                     </Button>
                                 </div>
@@ -494,94 +463,36 @@ export function RoomManagement() {
                 </div>
             )}
 
-            {/* MODAL DE ALERTA */}
-            <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
-                <DialogContent className="sm:max-w-md border-amber-200 bg-amber-50">
-                    <DialogHeader>
-                        <DialogTitle className="text-amber-800 flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5" />
-                            Selección Pendiente
-                        </DialogTitle>
-                        <DialogDescription className="text-amber-700">
-                            Tienes una habitación seleccionada en la grilla que no has agregado
-                            a tu lista.
-                            <br />
-                            <br />
-                            ¿Deseas agregarla a la reserva o descartarla?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button
-                            variant="outline"
-                            onClick={() => setAlertOpen(false)}
-                            className="border-amber-200 text-amber-900 hover:bg-amber-100"
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={handleDiscardAndProceed}
-                            variant="ghost"
-                            className="text-red-600 hover:bg-red-50"
-                        >
-                            Descartar
-                        </Button>
-                        <Button
-                            onClick={handleAddAndProceed}
-                            className="bg-blue-600 text-white hover:bg-blue-700"
-                        >
-                            Agregar y Continuar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <ModalAlert open={infoOpen} title={infoTitle} message={infoMessage} type={infoType} onOk={() => { setInfoOpen(false); if (infoOnOk) infoOnOk(); }} okText="Aceptar" />
 
-            {/* MODAL FINALIZAR */}
-            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+            <AlertDialog open={pendingSelectionOpen} onOpenChange={setPendingSelectionOpen}>
+                <AlertDialogContent className="bg-amber-50 border-amber-200">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-amber-800 flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Selección Pendiente</AlertDialogTitle>
+                        <AlertDialogDescription className="text-amber-700">Tienes una habitación seleccionada en la grilla que no has agregado a tu lista.<br/><br/>¿Deseas agregarla a la reserva o descartarla?</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setPendingSelectionOpen(false)} className="border-amber-200 text-amber-900 hover:bg-amber-100">Cancelar</AlertDialogCancel>
+                        <Button variant="ghost" onClick={handleDiscardAndProceed} className="text-red-600 hover:bg-red-100 hover:text-red-700">Descartar</Button>
+                        <AlertDialogAction onClick={handleAddAndProceed} className="bg-blue-600 text-white hover:bg-blue-700 border-blue-700">Agregar y Continuar</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <Dialog open={guestFormOpen} onOpenChange={setGuestFormOpen}>
                 <DialogContent className="sm:max-w-md border-rose-100">
                     <DialogHeader>
-                        <DialogTitle className="text-rose-950 flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-green-600" />
-                            Finalizar Reserva
-                        </DialogTitle>
-                        <DialogDescription>
-                            Estás por reservar <b>{selecciones.length} habitaciones</b>.
-                        </DialogDescription>
+                        <DialogTitle className="text-rose-950 flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-green-600" /> Finalizar Reserva</DialogTitle>
+                        <DialogDescription>Estás por reservar <b>{selecciones.length} habitaciones</b>.</DialogDescription>
                     </DialogHeader>
-
                     <div className="space-y-4 py-2">
-                        <Input
-                            placeholder="Nombre"
-                            value={guestData.nombre}
-                            onChange={(e) =>
-                                setGuestData({ ...guestData, nombre: e.target.value })
-                            }
-                        />
-                        <Input
-                            placeholder="Apellido"
-                            value={guestData.apellido}
-                            onChange={(e) =>
-                                setGuestData({ ...guestData, apellido: e.target.value })
-                            }
-                        />
-                        <Input
-                            placeholder="Teléfono"
-                            value={guestData.telefono}
-                            onChange={(e) =>
-                                setGuestData({ ...guestData, telefono: e.target.value })
-                            }
-                        />
+                        <Input placeholder="Nombre" value={guestData.nombre} onChange={(e) => setGuestData({ ...guestData, nombre: e.target.value })} />
+                        <Input placeholder="Apellido" value={guestData.apellido} onChange={(e) => setGuestData({ ...guestData, apellido: e.target.value })} />
+                        <Input placeholder="Teléfono" value={guestData.telefono} onChange={(e) => setGuestData({ ...guestData, telefono: e.target.value })} />
                     </div>
-
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setModalOpen(false)}>
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={handleConfirmarReserva}
-                            className="bg-rose-900 text-white"
-                        >
-                            Confirmar Reserva
-                        </Button>
+                        <Button variant="outline" onClick={() => setGuestFormOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleConfirmarReserva} className="bg-rose-900 text-white hover:bg-rose-800">Confirmar Reserva</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

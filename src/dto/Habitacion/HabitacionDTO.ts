@@ -3,7 +3,7 @@
 export type EstadoHabitacion = "DISPONIBLE" | "OCUPADA" | "MANTENIMIENTO";
 
 export interface HabitacionDTO {
-    id_habitacion: string;
+    idHabitacion: string;
     precio: number | null;
     numero: number;
     piso: number;

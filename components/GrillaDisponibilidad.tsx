@@ -1,15 +1,20 @@
 "use client";
 
+import { useMemo, useEffect } from "react";
+
 // --- TIPOS ---
 export interface HabitacionDTO {
-    id_habitacion: string;
+    // Definimos ambos para que TypeScript no se queje, venga como venga
+    idHabitacion?: string;
+    id_habitacion?: string;
+
     numero: number;
     tipoHabitacion: string;
     precio: number;
 }
 
 export interface DisponibilidadDia {
-    fecha: string; // Formato YYYY-MM-DD
+    fecha: string;
     estado: "DISPONIBLE" | "OCUPADA" | "RESERVADA" | "MANTENIMIENTO";
 }
 
@@ -21,28 +26,22 @@ export interface HabitacionDisponibilidad {
 interface GrillaProps {
     data: HabitacionDisponibilidad[];
     loading: boolean;
-    // Selección en curso (arrastrando)
     tempSelection: {
         start: string | null;
         end: string | null;
         roomId: string | null;
     };
-    // Selecciones ya confirmadas (en el carrito)
     finalSelections: {
         idHabitacion: string;
         fechaDesde: string;
         fechaHasta: string;
     }[];
     onCellClick: (roomId: string, dateStr: string, estado: string, numero: number) => void;
-
-    // Modo visual para diferenciar colores
     modo: "reserva" | "checkin";
 }
 
-// Utilidades internas
 const formatearFecha = (fechaStr: string) => {
     if (!fechaStr) return "-";
-    // Forzamos la interpretación como UTC para evitar desplazamientos de día visuales
     const [year, month, day] = fechaStr.split('-').map(Number);
     const date = new Date(year, month - 1, day);
     return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit" }).format(date);
@@ -57,7 +56,6 @@ const getTodayString = () => {
 };
 
 const isDatePast = (dateStr: string) => {
-    // Comparación lexicográfica simple (YYYY-MM-DD funciona alfabéticamente)
     return dateStr < getTodayString();
 };
 
@@ -70,25 +68,50 @@ export function GrillaDisponibilidad({
                                          modo
                                      }: GrillaProps) {
 
-    // --- LÓGICA DE SELECCIÓN CORREGIDA ---
-    const isTempSelected = (roomId: string, dateStr: string) => {
-        // 1. BLOQUEO HORIZONTAL: Si la fila no coincide con la selección actual, devolver falso.
-        if (tempSelection.roomId && tempSelection.roomId !== roomId) return false;
-
-        // 2. Si no hay fecha de inicio, no hay nada seleccionado
-        if (!tempSelection.start) return false;
-
-        // 3. Selección de una sola celda (Click inicial)
-        if (!tempSelection.end) {
-            return dateStr === tempSelection.start;
+    // DEBUG: Ver qué llega realmente desde el backend
+    useEffect(() => {
+        if (data && data.length > 0) {
+            console.log("🟢 Datos recibidos en Grilla:", data);
+            console.log("🟢 Ejemplo fila 1 habitacion:", data[0].habitacion);
         }
+    }, [data]);
 
-        // 4. Selección de rango (Inicio -> Fin)
-        // Como las fechas son YYYY-MM-DD, podemos comparar strings directamente.
-        // Esto evita errores de horas/zonas horarias.
+    // --- 1. DEDUPLICACIÓN ROBUSTA ---
+    const uniqueData = useMemo(() => {
+        if (!data || !Array.isArray(data)) return [];
+
+        const seen = new Set<string>();
+
+        return data.filter(row => {
+            if (!row.habitacion) return false;
+
+            // TRUCO: Intentamos leer el ID de las dos formas posibles
+            const idReal = row.habitacion.idHabitacion || row.habitacion.id_habitacion;
+
+            // Si no tiene ID, lo mostramos en consola para avisar, pero no lo renderizamos
+            if (!idReal) {
+                console.warn("⚠️ Fila ignorada por falta de ID:", row);
+                return false;
+            }
+
+            // Si ya vimos este ID, es un duplicado del backend
+            if (seen.has(idReal)) {
+                return false;
+            }
+
+            seen.add(idReal);
+            return true;
+        });
+    }, [data]);
+
+    // --- 2. LÓGICA DE SELECCIÓN ---
+    const isTempSelected = (roomId: string, dateStr: string) => {
+        if (tempSelection.roomId && tempSelection.roomId !== roomId) return false;
+        if (!tempSelection.start) return false;
+        if (!tempSelection.end) return dateStr === tempSelection.start;
+
         const s = tempSelection.start < tempSelection.end ? tempSelection.start : tempSelection.end;
         const e = tempSelection.start < tempSelection.end ? tempSelection.end : tempSelection.start;
-
         return dateStr >= s && dateStr <= e;
     };
 
@@ -102,7 +125,16 @@ export function GrillaDisponibilidad({
     // --- RENDER ---
 
     if (loading) return <div className="p-12 text-center text-gray-500">Cargando disponibilidad...</div>;
-    if (!data || data.length === 0) return <div className="p-12 text-center text-gray-500">No hay datos.</div>;
+
+    // Si uniqueData está vacío, significa que el filtro borró todo o no llegó nada
+    if (!uniqueData || uniqueData.length === 0) {
+        return (
+            <div className="p-12 text-center text-gray-500 flex flex-col items-center gap-2">
+                <p>No hay datos disponibles.</p>
+                <p className="text-xs text-gray-400">(Revise la consola F12 para ver detalles del JSON)</p>
+            </div>
+        );
+    }
 
     const colorHeaderHoy = modo === "checkin" ? "bg-green-100 text-green-900 border-b-green-300" : "bg-rose-100 text-rose-900";
     const colorHabitacion = modo === "checkin" ? "text-green-900" : "text-rose-950";
@@ -115,7 +147,7 @@ export function GrillaDisponibilidad({
                     <th className="p-3 text-left bg-gray-50 border-b text-gray-600 font-medium sticky left-0 z-10 w-32 shadow-sm">
                         Habitación
                     </th>
-                    {data[0].disponibilidad.map((d, i) => {
+                    {uniqueData[0].disponibilidad.map((d) => {
                         const esHoy = d.fecha === getTodayString();
                         const highlight = (modo === "checkin" && esHoy);
                         return (
@@ -129,85 +161,86 @@ export function GrillaDisponibilidad({
                     })}
                 </tr>
                 </thead>
-                <tbody>
-                {data.map(row => (
-                    // KEY IMPORTANTE: Si hay IDs duplicados aquí, React renderizará mal la selección
-                    <tr key={row.habitacion.id_habitacion} className="hover:bg-gray-50/30">
-                        <td className="p-3 text-left bg-white border-r border-b sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                            <div className={`font-bold text-sm ${colorHabitacion}`}>
-                                Hab {row.habitacion.numero}
-                            </div>
-                            <div className="text-[10px] text-gray-400 font-normal uppercase">
-                                {row.habitacion.tipoHabitacion}
-                            </div>
-                            {/* DEBUG: Descomentar para ver si hay IDs repetidos visualmente */}
-                            {/* <div className="text-[8px] text-gray-300">{row.habitacion.id_habitacion}</div> */}
-                        </td>
+                <tbody className="divide-y divide-gray-100">
+                {uniqueData.map((row) => {
+                    // Obtenemos el ID seguro para usarlo en Keys y Clicks
+                    const currentId = row.habitacion.idHabitacion || row.habitacion.id_habitacion || "unknown";
 
-                        {row.disponibilidad.map((dia) => {
-                            const esSeleccionado = isTempSelected(row.habitacion.id_habitacion, dia.fecha);
-                            const esFinal = isFinalSelected(row.habitacion.id_habitacion, dia.fecha);
-                            const esHoy = dia.fecha === getTodayString();
-                            const pasado = isDatePast(dia.fecha);
+                    return (
+                        <tr key={currentId} className="hover:bg-gray-50/30">
+                            <td className="p-3 text-left bg-white border-r border-b sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                <div className={`font-bold text-sm ${colorHabitacion}`}>
+                                    Hab {row.habitacion.numero}
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-normal uppercase">
+                                    {row.habitacion.tipoHabitacion}
+                                </div>
+                            </td>
 
-                            // Estilos
-                            let bg = "bg-white";
-                            let txtColor = "text-gray-300";
-                            let content = "•";
-                            let cursor = "cursor-not-allowed";
+                            {row.disponibilidad.map((dia) => {
+                                const esSeleccionado = isTempSelected(currentId, dia.fecha);
+                                const esFinal = isFinalSelected(currentId, dia.fecha);
+                                const esHoy = dia.fecha === getTodayString();
+                                const pasado = isDatePast(dia.fecha);
 
-                            if (dia.estado === "DISPONIBLE") {
-                                bg = "bg-green-50/50 hover:bg-green-100";
-                                txtColor = "text-green-600";
-                                content = "Libre";
-                                cursor = "cursor-pointer";
-                            } else if (dia.estado === "OCUPADA") {
-                                bg = "bg-red-50";
-                                txtColor = "text-red-300";
-                                content = "Ocu";
-                            } else if (dia.estado === "MANTENIMIENTO") {
-                                bg = "bg-gray-100";
-                                txtColor = "text-gray-400";
-                                content = "Mant";
-                            } else if (dia.estado === "RESERVADA") {
-                                bg = "bg-yellow-50 hover:bg-yellow-100";
-                                txtColor = "text-yellow-600";
-                                content = "Res";
-                                cursor = "cursor-pointer";
-                            }
+                                let bg = "bg-white";
+                                let txtColor = "text-gray-300";
+                                let content = "•";
+                                let cursor = "cursor-not-allowed";
 
-                            if (pasado) {
-                                bg = "bg-gray-50";
-                                txtColor = "text-gray-300";
-                                cursor = "cursor-not-allowed";
-                            }
+                                if (dia.estado === "DISPONIBLE") {
+                                    bg = "bg-green-50/50 hover:bg-green-100";
+                                    txtColor = "text-green-600";
+                                    content = "Libre";
+                                    cursor = "cursor-pointer";
+                                } else if (dia.estado === "OCUPADA") {
+                                    bg = "bg-red-50";
+                                    txtColor = "text-red-300";
+                                    content = "Ocu";
+                                } else if (dia.estado === "MANTENIMIENTO") {
+                                    bg = "bg-gray-100";
+                                    txtColor = "text-gray-400";
+                                    content = "Mant";
+                                } else if (dia.estado === "RESERVADA") {
+                                    bg = "bg-yellow-50 hover:bg-yellow-100";
+                                    txtColor = "text-yellow-600";
+                                    content = "Res";
+                                    cursor = "cursor-pointer";
+                                }
 
-                            if (esFinal) {
-                                bg = "bg-blue-100 border-blue-200";
-                                txtColor = "text-blue-800 font-bold";
-                                content = "✓";
-                            }
+                                if (pasado) {
+                                    bg = "bg-gray-50";
+                                    txtColor = "text-gray-300";
+                                    cursor = "cursor-not-allowed";
+                                }
 
-                            if (esSeleccionado) {
-                                bg = modo === "checkin" ? "bg-blue-600 shadow-sm" : "bg-rose-600 shadow-sm";
-                                txtColor = "text-white font-bold";
-                                content = "+";
-                            }
+                                if (esFinal) {
+                                    bg = "bg-blue-100 border-blue-200";
+                                    txtColor = "text-blue-800 font-bold";
+                                    content = "✓";
+                                }
 
-                            const borderClass = (modo === "checkin" && esHoy) ? "ring-2 ring-inset ring-green-300" : "";
+                                if (esSeleccionado) {
+                                    bg = modo === "checkin" ? "bg-blue-600 shadow-sm" : "bg-rose-600 shadow-sm";
+                                    txtColor = "text-white font-bold";
+                                    content = "+";
+                                }
 
-                            return (
-                                <td
-                                    key={dia.fecha}
-                                    onClick={() => !pasado && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero)}
-                                    className={`p-1 border-b border-r h-10 transition-all duration-150 ${bg} ${txtColor} ${cursor} ${borderClass}`}
-                                >
-                                    {content}
-                                </td>
-                            );
-                        })}
-                    </tr>
-                ))}
+                                const borderClass = (modo === "checkin" && esHoy) ? "ring-2 ring-inset ring-green-300" : "";
+
+                                return (
+                                    <td
+                                        key={dia.fecha}
+                                        onClick={() => !pasado && onCellClick(currentId, dia.fecha, dia.estado, row.habitacion.numero)}
+                                        className={`p-1 border-b border-r h-10 transition-all duration-150 ${bg} ${txtColor} ${cursor} ${borderClass}`}
+                                    >
+                                        {content}
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    );
+                })}
                 </tbody>
             </table>
         </div>
