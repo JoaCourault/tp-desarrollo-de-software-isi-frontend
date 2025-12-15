@@ -178,7 +178,7 @@ function AltaHuespedForm({ onGuestCreated }: AltaHuespedFormProps) {
         try {
             const res = await api.alta(payload);
             
-            // Éxito
+            // 0 = ÉXITO
             if (res.resultado.id === 0) {
                 setCreatedGuest(res.huesped);
                 setDuplicateModalOpen(false); 
@@ -186,12 +186,16 @@ function AltaHuespedForm({ onGuestCreated }: AltaHuespedFormProps) {
                 setShowSuccessModal(true);
                 if (formToReset) formToReset.reset();
             } 
-            // Duplicado
-            else if (res.resultado.id === 2) {
+            // 3 = DUPLICADO REAL (Ahora coincide con el backend)
+            else if (res.resultado.id === 3) {
                 setPendingPayload(payload); 
                 setDuplicateModalOpen(true); 
             }
-            // Error
+            // 2 = ERROR DE VALIDACIÓN (Falta dato, fecha mal, etc)
+            else if (res.resultado.id === 2) {
+                showAlert("warning", "Datos Incorrectos", res.resultado.mensaje);
+            }
+            // 1 u otros = ERROR INTERNO
             else {
                 showAlert("error", "Error", res.resultado.mensaje);
             }
@@ -266,13 +270,13 @@ function AltaHuespedForm({ onGuestCreated }: AltaHuespedFormProps) {
                 idHuesped: null,
                 nombre: String(data.get("nombre") ?? ""),
                 apellido: String(data.get("apellido") ?? ""),
-                tipoDocumento: {
+                tipoDoc: {
                     tipoDocumento: String(data.get("tipoDocumento") ?? ""),
                 },
                 numDoc: String(data.get("numDoc") ?? ""),
                 posicionIva: posicionIva,
                 cuit: cuit === "" ? null : cuit, 
-                fechaNacimiento: String(data.get("fechaNacimiento") ?? ""),
+                fechaNac: String(data.get("fechaNacimiento") ?? ""),
                 telefono: String(data.get("telefono") ?? ""),
                 email: String(data.get("email") ?? ""),
                 ocupacion: String(data.get("ocupacion") ?? ""),
@@ -281,8 +285,8 @@ function AltaHuespedForm({ onGuestCreated }: AltaHuespedFormProps) {
                     calle: String(data.get("calle") ?? ""),
                     numero: String(numVal), 
                     departamento: String(data.get("departamento") ?? ""),
-                    piso: String(data.get("piso") ?? ""),
-                    codigoPostal: String(cpVal),
+                    piso: data.get("piso") ? Number(data.get("piso")) : null,
+                    cp: String(cpVal),
                     localidad: String(data.get("localidad") ?? ""),
                     provincia: String(data.get("provincia") ?? ""),
                     pais: String(data.get("pais") ?? ""),

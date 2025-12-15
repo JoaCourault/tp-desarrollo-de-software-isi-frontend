@@ -8,7 +8,7 @@ export interface DireccionDTO {
     calle: string | null;
     numero: string | null;
     departamento: string | null;
-    piso: string | null;
+    piso: number | null;
     cp: string | null;
     localidad: string | null;
     provincia: string | null;
