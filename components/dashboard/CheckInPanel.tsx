@@ -410,15 +410,31 @@ export default function CheckInPanel() {
 
         setLoading(true);
 
+        // --- CONSTRUCCIÓN DEL PAYLOAD CORRECTO PARA EL BACKEND ---
+        // 1. Recopilar todos los IDs de huéspedes (Titular + Acompañantes de todas las habitaciones)
+        const todosLosHuespedesIds = new Set<string>();
+        todosLosHuespedesIds.add(titularGlobal.idHuesped); // Agregamos al titular
+
+        selecciones.forEach(sel => {
+            if (sel.huespedes) {
+                sel.huespedes.forEach(h => todosLosHuespedesIds.add(h.idHuesped));
+            }
+        });
+
+        // 2. Calcular cantidad de noches (asumiendo que viene de la primera selección o es igual para todas)
+        const fechaInicio = new Date(selecciones[0].fechaDesde);
+        const fechaFin = new Date(selecciones[0].fechaHasta);
+        const diferenciaTiempo = fechaFin.getTime() - fechaInicio.getTime();
+        const diasDiferencia = Math.ceil(diferenciaTiempo / (1000 * 3600 * 24));
+
+        // 3. Crear el objeto JSON plano que espera Java
         const payload = {
-            idHuespedTitular: titularGlobal.idHuesped,
-            habitaciones: selecciones.map((sel) => ({
-                idHabitacion: sel.idHabitacion,
-                fechaDesde: `${sel.fechaDesde}T14:00:00`,
-                fechaHasta: `${sel.fechaHasta}T10:00:00`,
-                idReservaAsociada: null,
-                acompanantesIds: (sel.huespedes || []).map(h => h.idHuesped)
-            }))
+            checkIn: selecciones[0].fechaDesde, // Formato "YYYY-MM-DD"
+            checkOut: selecciones[0].fechaHasta, // Formato "YYYY-MM-DD"
+            cantNoches: diasDiferencia > 0 ? diasDiferencia : 1, // Mínimo 1 noche
+            idReserva: null, // O el ID si viene de una reserva (aquí asumo null por ahora)
+            idsHabitaciones: selecciones.map(s => s.idHabitacion), // <--- ARRAY PLANO DE STRINGS
+            idsHuespedes: Array.from(todosLosHuespedesIds)         // <--- ARRAY PLANO DE STRINGS
         };
 
         try {
@@ -432,8 +448,14 @@ export default function CheckInPanel() {
                 setCheckInExitoso(true);
                 setModalExitoOpen(true);
             } else {
-                const errorText = await res.text();
-                showAlert("error", "Error en Check-In", errorText);
+                // Intentar leer JSON de error del backend
+                try {
+                    const errorJson = await res.json();
+                    showAlert("error", "Error en Check-In", errorJson.mensaje || "Error desconocido");
+                } catch {
+                    const errorText = await res.text();
+                    showAlert("error", "Error en Check-In", errorText);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -666,6 +688,42 @@ export default function CheckInPanel() {
                                     );
                                 })}
                             </div>
+
+                            {/* BARRA DE ACCIONES INFERIOR */}
+                            <div className="p-4 border-t bg-gray-50 flex flex-wrap gap-3 justify-between items-center">
+                                {/* IZQUIERDA */}
+                                <div className="flex gap-2">
+                                    <Button variant="outline" onClick={volverAGrilla} disabled={checkInExitoso} className="text-gray-700 border-gray-300 hover:bg-gray-100">
+                                        <PlusCircle className="h-4 w-4 mr-2" />
+                                        Agregar otra habitación
+                                    </Button>
+
+                                    {selecciones.length > 1 && habitacionActivaIndex < selecciones.length - 1 && (
+                                        <Button variant="secondary" onClick={handleSeguirCargando} className="bg-white border hover:bg-gray-100 text-gray-700 shadow-sm">
+                                            Seguir a Siguiente Hab <ArrowRight className="h-4 w-4 ml-2" />
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {/* DERECHA - BOTONES DE ACCIÓN PRINCIPAL */}
+                                <div className="flex gap-2">
+                                    <Button
+                                        className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
+                                        onClick={procesarCheckIn}
+                                        disabled={loading || !titularGlobal || checkInExitoso}
+                                    >
+                                        <Save className="h-4 w-4 mr-2" />
+                                        {checkInExitoso ? "Procesado" : "Guardar y Finalizar"}
+                                    </Button>
+
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() => setModalSalirOpen(true)}
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
                         </Card>
 
                         {/* DERECHA: BÚSQUEDA Y BOTONES */}
@@ -748,48 +806,12 @@ export default function CheckInPanel() {
                                                     onClick={() => toggleHuespedEnActiva(h)}
                                                     disabled={checkInExitoso}
                                                 >
-                                                    {isEnActiva ? "Quitar de Hab" : <><UserPlus className="h-3 w-3 mr-1"/> Agregar a Hab</>}
+                                                    {isEnActiva ? "Quitar de Hab" : <><UserPlus className="h-3 w-3 mr-1" /> Agregar a Hab</>}
                                                 </Button>
                                             </div>
                                         </div>
                                     );
                                 })}
-                            </div>
-
-                            {/* BARRA DE ACCIONES INFERIOR */}
-                            <div className="p-4 border-t bg-gray-50 flex flex-wrap gap-3 justify-between items-center">
-                                {/* IZQUIERDA */}
-                                <div className="flex gap-2">
-                                    <Button variant="outline" onClick={volverAGrilla} disabled={checkInExitoso} className="text-gray-700 border-gray-300 hover:bg-gray-100">
-                                        <PlusCircle className="h-4 w-4 mr-2" />
-                                        Agregar otra habitación
-                                    </Button>
-
-                                    {selecciones.length > 1 && habitacionActivaIndex < selecciones.length - 1 && (
-                                        <Button variant="secondary" onClick={handleSeguirCargando} className="bg-white border hover:bg-gray-100 text-gray-700 shadow-sm">
-                                            Seguir a Siguiente Hab <ArrowRight className="h-4 w-4 ml-2" />
-                                        </Button>
-                                    )}
-                                </div>
-
-                                {/* DERECHA - BOTONES DE ACCIÓN PRINCIPAL */}
-                                <div className="flex gap-2">
-                                    <Button
-                                        className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
-                                        onClick={procesarCheckIn}
-                                        disabled={loading || !titularGlobal || checkInExitoso}
-                                    >
-                                        <Save className="h-4 w-4 mr-2" />
-                                        {checkInExitoso ? "Procesado" : "Guardar y Finalizar"}
-                                    </Button>
-
-                                    <Button
-                                        variant="destructive"
-                                        onClick={() => setModalSalirOpen(true)}
-                                    >
-                                        <LogOut className="h-4 w-4" />
-                                    </Button>
-                                </div>
                             </div>
                         </Card>
                     </div>
