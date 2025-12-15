@@ -84,13 +84,13 @@ function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
                 idHuesped: null,
                 nombre: String(data.get("nombre") ?? ""),
                 apellido: String(data.get("apellido") ?? ""),
-                tipoDocumento: {
+                tipoDoc: {
                     tipoDocumento: String(data.get("tipoDocumento") ?? ""),
                 },
                 numDoc: String(data.get("numDoc") ?? ""),
                 posicionIva: String(data.get("posicionIva") ?? ""),
                 cuit: String(data.get("cuit") ?? "") || null,
-                fechaNacimiento: String(data.get("fechaNacimiento") ?? ""),
+                fechaNac: String(data.get("fechaNacimiento") ?? ""),
                 telefono: String(data.get("telefono") ?? ""),
                 email: String(data.get("email") ?? ""),
                 ocupacion: String(data.get("ocupacion") ?? ""),
@@ -322,7 +322,7 @@ function BuscarHuespedForm({ onGoToCreate }: BuscarHuespedFormProps) {
             huesped: {
                 nombre: String(data.get("nombre") ?? "") || null,
                 apellido: String(data.get("apellido") ?? "") || null,
-                tipoDocumento: tipoDocValue ? { tipoDocumento: tipoDocValue } : null,
+                tipoDoc: tipoDocValue ? { tipoDocumento: tipoDocValue } : null,
                 numDoc: String(data.get("numDoc") ?? "") || null,
             },
         };
@@ -396,7 +396,7 @@ function BuscarHuespedForm({ onGoToCreate }: BuscarHuespedFormProps) {
                                         <div className="font-medium text-rose-950">{h.apellido}, {h.nombre}</div>
                                         <div className="text-sm text-gray-500 flex gap-2 mt-1">
                                             <span className="bg-rose-50 text-rose-800 px-2 py-0.5 rounded text-xs border border-rose-100">
-                                                {h.tipoDocumento?.tipoDocumento}: {h.numDoc}
+                                                {h.tipoDoc?.tipoDocumento}: {h.numDoc}
                                             </span>
                                             {h.email && <span>• {h.email}</span>}
                                         </div>

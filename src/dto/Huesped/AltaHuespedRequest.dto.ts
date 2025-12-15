@@ -20,11 +20,11 @@ export interface HuespedDTO {
     idHuesped: string | null;
     nombre: string;
     apellido: string;
-    tipoDocumento: TipoDocumentoDTO;
+    tipoDoc: TipoDocumentoDTO;
     numDoc: string;
     posicionIva: string;
     cuit: string | null;
-    fechaNacimiento: string;
+    fechaNac: string;
     telefono: string;
     email: string;
     ocupacion: string;
