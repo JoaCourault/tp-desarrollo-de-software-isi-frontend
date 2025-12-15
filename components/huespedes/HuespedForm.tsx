@@ -8,7 +8,7 @@ import { ModificarHuespedRequestDTO } from "@/src/dto/Huesped/ModificarHuespedRe
 import { HuespedApi } from "@/src/api/huesped.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ModalAlert from "@/components/modalAlert/modalAlert"; // Tu modal AntD
+import ModalAlert from "@/components/modalAlert/modalAlert";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -18,30 +18,56 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "@/components/ui/alert-dialog"; // Shadcn para duplicados
+} from "@/components/ui/alert-dialog";
 
 interface HuespedFormProps {
     initialData?: HuespedDTO | null;
     onBack: (shouldRefresh: boolean) => void;
 }
 
+// --- UTILIDADES ---
+const formatDateForInput = (val: string | number[] | undefined | null): string => {
+    if (!val) return "";
+    if (Array.isArray(val)) {
+        const [year, month, day] = val;
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    const date = new Date(val as string);
+    if (isNaN(date.getTime())) return "";
+    return date.toISOString().split('T')[0];
+};
+
+// HANDLERS DE VALIDACIÓN EN TIEMPO REAL
+const handleTextInput = (e: React.FormEvent<HTMLInputElement>) => {
+    // Solo permite letras, espacios y acentos
+    e.currentTarget.value = e.currentTarget.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+};
+
+const handleNumberInput = (e: React.FormEvent<HTMLInputElement>) => {
+    // Solo permite números
+    e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, '');
+};
+
 export function HuespedForm({ initialData, onBack }: HuespedFormProps) {
     const api = new HuespedApi();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Estados para Alertas Informativas
+    // Estados para Alertas
     const [modalOpen, setModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
     const [modalTitle, setModalTitle] = useState('');
     const [modalMessage, setModalMessage] = useState('');
     const [onOkAction, setOnOkAction] = useState<(() => void) | null>(null);
 
-    // Estados para Confirmación de Duplicado
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [pendingPayload, setPendingPayload] = useState<AltaHuespedRequestDTO | ModificarHuespedRequestDTO | null>(null);
 
     const isEditing = !!initialData;
     const formTitle = isEditing ? "Modificar Huésped" : "Alta de Huésped";
+
+    const fechaNacimientoValue = formatDateForInput(
+        (initialData as any)?.fechaNac || initialData?.fechaNacimiento
+    );
 
     const showAlert = (type: 'info' | 'success' | 'warning' | 'error', title: string, message: string, onOk?: () => void) => {
         setModalType(type);
@@ -64,7 +90,6 @@ export function HuespedForm({ initialData, onBack }: HuespedFormProps) {
                 if (!isEditing && formElement) formElement.reset();
                 setPendingPayload(null);
             } else if (res.resultado.id === 3) {
-                // Duplicado -> Preguntar con AlertDialog
                 setPendingPayload(payload);
                 setConfirmOpen(true);
             } else {
@@ -135,14 +160,31 @@ export function HuespedForm({ initialData, onBack }: HuespedFormProps) {
             <form onSubmit={handleSubmit} className="px-6 py-6 space-y-6 animate-in slide-in-from-right duration-300">
                 {/* Inputs Personales */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Apellido *</label><Input name="apellido" required defaultValue={initialData?.apellido || ""} className="bg-white" /></div>
-                    <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Nombre *</label><Input name="nombre" required defaultValue={initialData?.nombre || ""} className="bg-white" /></div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-gray-700">Apellido *</label>
+                        {/* VALIDACIÓN DE TEXTO */}
+                        <Input name="apellido" required defaultValue={initialData?.apellido || ""} onInput={handleTextInput} className="bg-white" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-gray-700">Nombre *</label>
+                        {/* VALIDACIÓN DE TEXTO */}
+                        <Input name="nombre" required defaultValue={initialData?.nombre || ""} onInput={handleTextInput} className="bg-white" />
+                    </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Tipo Doc. *</label><select name="tipoDocumento" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" required defaultValue={initialData?.tipoDocumento?.tipoDocumento || "DNI"}><option value="DNI">DNI</option><option value="Pasaporte">Pasaporte</option><option value="LE">LE</option><option value="LC">LC</option></select></div>
                     <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Número Doc. *</label><Input name="numDoc" required defaultValue={initialData?.numDoc || ""} className="bg-white" /></div>
                     <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">CUIT</label><Input name="cuit" defaultValue={initialData?.cuit || ""} className="bg-white" /></div>
-                    <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Fecha Nac. *</label><Input name="fechaNacimiento" type="date" required defaultValue={initialData?.fechaNacimiento || ""} className="bg-white" /></div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-gray-700">Fecha Nac. *</label>
+                        <Input
+                            name="fechaNacimiento"
+                            type="date"
+                            required
+                            defaultValue={fechaNacimientoValue}
+                            className="bg-white"
+                        />
+                    </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Posición IVA *</label><select name="posicionIva" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" required defaultValue={initialData?.posicionIva || "Consumidor Final"}><option>Consumidor Final</option><option>Responsable Inscripto</option><option>Monotributista</option></select></div>
@@ -158,7 +200,20 @@ export function HuespedForm({ initialData, onBack }: HuespedFormProps) {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Depto</label><Input name="departamento" defaultValue={initialData?.direccion?.departamento || ""} className="bg-white" /></div>
                         <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Piso</label><Input name="piso" defaultValue={initialData?.direccion?.piso || ""} className="bg-white" /></div>
-                        <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">CP *</label><Input name="codigoPostal" type="number" required defaultValue={initialData?.direccion?.codigoPostal || ""} className="bg-white" /></div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-gray-700">CP *</label>
+                            <Input
+                                name="codigoPostal"
+                                type="number"
+                                required
+                                defaultValue={
+                                    initialData?.direccion?.codigoPostal ||
+                                    (initialData?.direccion as any)?.cp ||
+                                    ""
+                                }
+                                className="bg-white"
+                            />
+                        </div>
                         <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Localidad *</label><Input name="localidad" required defaultValue={initialData?.direccion?.localidad || ""} className="bg-white" /></div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -171,12 +226,24 @@ export function HuespedForm({ initialData, onBack }: HuespedFormProps) {
                 <div className="space-y-4 pt-2">
                     <h3 className="text-sm font-semibold text-rose-950 border-b border-rose-100 pb-1">Otros Datos</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Teléfono *</label><Input name="telefono" required defaultValue={initialData?.telefono || ""} className="bg-white" /></div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-gray-700">Teléfono *</label>
+                            {/* VALIDACIÓN NUMÉRICA */}
+                            <Input name="telefono" required defaultValue={initialData?.telefono || ""} onInput={handleNumberInput} className="bg-white" />
+                        </div>
                         <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Email</label><Input name="email" type="email" defaultValue={initialData?.email || ""} className="bg-white" /></div>
-                        <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Nacionalidad *</label><Input name="nacionalidad" required defaultValue={initialData?.nacionalidad || ""} className="bg-white" /></div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-gray-700">Nacionalidad *</label>
+                            {/* VALIDACIÓN DE TEXTO */}
+                            <Input name="nacionalidad" required defaultValue={initialData?.nacionalidad || ""} onInput={handleTextInput} className="bg-white" />
+                        </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Ocupación *</label><Input name="ocupacion" required defaultValue={initialData?.ocupacion || ""} className="bg-white" /></div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-gray-700">Ocupación *</label>
+                            {/* VALIDACIÓN DE TEXTO */}
+                            <Input name="ocupacion" required defaultValue={initialData?.ocupacion || ""} onInput={handleTextInput} className="bg-white" />
+                        </div>
                     </div>
                 </div>
 

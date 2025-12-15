@@ -8,7 +8,7 @@ import { BuscarHuespedRequestDTO } from "@/src/dto/Huesped/BuscarHuespedRequest.
 import { BajaHuespedRequestDTO } from "@/src/dto/Huesped/BajaHuespedRequest.dto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ModalAlert from "@/components/modalAlert/modalAlert"; // Tu modal de AntD para mensajes
+import ModalAlert from "@/components/modalAlert/modalAlert";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -18,12 +18,17 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "@/components/ui/alert-dialog"; // El componente shadcn para confirmación
+} from "@/components/ui/alert-dialog";
 
 interface BuscarHuespedProps {
     onGoToCreate: () => void;
     onGoToEdit: (huesped: HuespedDTO) => void;
 }
+
+// HANDLER DE VALIDACIÓN DE TEXTO PARA BÚSQUEDA
+const handleTextInput = (e: React.FormEvent<HTMLInputElement>) => {
+    e.currentTarget.value = e.currentTarget.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+};
 
 export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedProps) {
     const api = new HuespedApi();
@@ -32,13 +37,12 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
     const [searching, setSearching] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
-    // Estados para Alertas (Info/Error)
+    // Estados para Alertas
     const [modalOpen, setModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
     const [modalTitle, setModalTitle] = useState('');
     const [modalMessage, setModalMessage] = useState('');
 
-    // Estados para Confirmación de Eliminación (AlertDialog)
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [huespedToDelete, setHuespedToDelete] = useState<string | null>(null);
 
@@ -89,7 +93,6 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
         setExpandedId(prev => prev === id ? null : id);
     };
 
-    // 1. Abrir diálogo de confirmación
     const handleDeleteClick = (e: React.MouseEvent, id: string | null) => {
         e.stopPropagation();
         if (id) {
@@ -98,10 +101,9 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
         }
     };
 
-    // 2. Ejecutar borrado real
     const confirmDelete = async () => {
         if (!huespedToDelete) return;
-        setDeleteOpen(false); // Cierra el diálogo
+        setDeleteOpen(false);
 
         try {
             const bajaPayload: BajaHuespedRequestDTO = { idHuesped: huespedToDelete };
@@ -134,8 +136,16 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
             <div className="p-6 space-y-6">
                 <form onSubmit={handleSearch} className="p-4 bg-rose-50/50 rounded-lg border border-rose-100 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600">Nombre</label><Input name="nombre" placeholder="Ej: Juan" className="bg-white" /></div>
-                        <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600">Apellido</label><Input name="apellido" placeholder="Ej: Perez" className="bg-white" /></div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-gray-600">Nombre</label>
+                            {/* VALIDACIÓN DE BÚSQUEDA */}
+                            <Input name="nombre" placeholder="Ej: Juan" onInput={handleTextInput} className="bg-white" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-gray-600">Apellido</label>
+                            {/* VALIDACIÓN DE BÚSQUEDA */}
+                            <Input name="apellido" placeholder="Ej: Perez" onInput={handleTextInput} className="bg-white" />
+                        </div>
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-gray-600">Tipo Doc.</label>
                             <select name="tipoDocumento" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" defaultValue=""><option value="">Todos</option><option value="DNI">DNI</option><option value="Pasaporte">Pasaporte</option><option value="LE">LE</option><option value="LC">LC</option></select>
@@ -186,10 +196,8 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
                 </div>
             </div>
 
-            {/* Modal de Mensajes (AntD) */}
             <ModalAlert open={modalOpen} title={modalTitle} message={modalMessage} type={modalType} onOk={() => setModalOpen(false)} okText="Aceptar" />
 
-            {/* Diálogo de Confirmación de Borrado (Shadcn/UI) */}
             <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <AlertDialogContent className="bg-red-50 border-red-200">
                     <AlertDialogHeader>

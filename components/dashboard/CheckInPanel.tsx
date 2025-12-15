@@ -55,7 +55,7 @@ interface Huesped {
     nombre: string;
     apellido: string;
     numDoc: string;
-    fechaNac: string; // Importante para validar edad
+    fechaNac: string;
     tipoDocumento?: { tipoDocumento: string };
 }
 
@@ -95,7 +95,6 @@ const formatearFecha = (fechaStr: string) => {
     }).format(date);
 };
 
-// Validar Mayoría de Edad (18+)
 const esMayorDeEdad = (fechaNacString: string) => {
     if (!fechaNacString) return false;
     const hoy = new Date();
@@ -109,8 +108,18 @@ const esMayorDeEdad = (fechaNacString: string) => {
     return edad >= 18;
 };
 
-// --- HELPER DE BÚSQUEDA ROBUSTA (LA SOLUCIÓN) ---
-// Busca la habitación probando idHabitacion O id_habitacion
+// --- HANDLERS DE VALIDACIÓN DE INPUTS ---
+const handleTextInput = (e: React.FormEvent<HTMLInputElement>) => {
+    // Solo permite letras, espacios y acentos
+    e.currentTarget.value = e.currentTarget.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+};
+
+const handleNumberInput = (e: React.FormEvent<HTMLInputElement>) => {
+    // Solo permite números
+    e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, '');
+};
+
+// --- HELPER DE BÚSQUEDA ROBUSTA ---
 const findHabitacionById = (lista: HabitacionDisponibilidad[], idBusqueda: string | null) => {
     if (!idBusqueda) return undefined;
     return lista.find(h => {
@@ -121,12 +130,10 @@ const findHabitacionById = (lista: HabitacionDisponibilidad[], idBusqueda: strin
 
 // --- COMPONENTE PRINCIPAL ---
 export default function CheckInPanel() {
-    // ESTADOS FLUJO
     const [paso, setPaso] = useState<"GRILLA" | "HUESPEDES">("GRILLA");
     const [loading, setLoading] = useState(false);
     const [checkInExitoso, setCheckInExitoso] = useState(false);
 
-    // ESTADOS GRILLA
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
     const [gridData, setGridData] = useState<HabitacionDisponibilidad[]>([]);
@@ -137,11 +144,9 @@ export default function CheckInPanel() {
         roomId: string | null;
     }>({ start: null, end: null, roomId: null });
 
-    // ESTADO DATOS
     const [selecciones, setSelecciones] = useState<SeleccionCheckIn[]>([]);
     const [titularGlobal, setTitularGlobal] = useState<Huesped | null>(null);
 
-    // UI & MODALES LOGICOS
     const [habitacionActivaIndex, setHabitacionActivaIndex] = useState<number>(0);
     const [modalConflicto, setModalConflicto] = useState(false);
     const [conflictDetails, setConflictDetails] = useState<DisponibilidadDia[]>([]);
@@ -149,7 +154,6 @@ export default function CheckInPanel() {
     const [modalSalirOpen, setModalSalirOpen] = useState(false);
     const [modalExitoOpen, setModalExitoOpen] = useState(false);
 
-    // ESTADOS PARA MODAL ALERT
     const [alertData, setAlertData] = useState<{
         open: boolean;
         type: 'info' | 'success' | 'warning' | 'error';
@@ -161,13 +165,11 @@ export default function CheckInPanel() {
         setAlertData({ open: true, type, title, message });
     };
 
-    // BÚSQUEDA HUESPEDES
     const [searchApellido, setSearchApellido] = useState("");
     const [searchNombre, setSearchNombre] = useState("");
     const [searchDocumento, setSearchDocumento] = useState("");
     const [listaHuespedes, setListaHuespedes] = useState<Huesped[]>([]);
 
-    // INIT
     useEffect(() => {
         setDesde(getTodayString());
         setHasta(getTomorrowString());
@@ -185,7 +187,6 @@ export default function CheckInPanel() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [checkInExitoso]);
 
-    // --- LOGICA DE GRILLA ---
     const handleBuscarDisponibilidad = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (desde !== getTodayString()) {
@@ -244,10 +245,7 @@ export default function CheckInPanel() {
 
     const intentarAgregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
-
-        // CORRECCIÓN 1: Usar findHabitacionById
         const hab = findHabitacionById(gridData, tempSelect.roomId);
-
         if (!hab) {
             console.error("Error: No se encontró la habitación con ID:", tempSelect.roomId);
             return;
@@ -282,7 +280,6 @@ export default function CheckInPanel() {
     };
 
     const confirmarAgregar = (esOcuparIgual: boolean) => {
-        // CORRECCIÓN 2: Usar findHabitacionById
         const hab = findHabitacionById(gridData, tempSelect.roomId);
         if (!hab) return;
 
@@ -335,7 +332,6 @@ export default function CheckInPanel() {
         if (!searched) realizarBusquedaGrilla();
     };
 
-    // --- LÓGICA DE HUÉSPEDES ---
     const buscarHuesped = async () => {
         try {
             const res = await fetch("http://localhost:8080/Huesped/Buscar", {
@@ -397,7 +393,6 @@ export default function CheckInPanel() {
         }
     };
 
-    // --- PROCESAMIENTO FINAL ---
     const procesarCheckIn = async () => {
         if (checkInExitoso) return;
 
@@ -463,10 +458,8 @@ export default function CheckInPanel() {
         window.location.reload();
     };
 
-    // CORRECCIÓN 3: Helper para obtener la habitación seleccionada y renderizar su número
     const habitacionSeleccionadaPanel = findHabitacionById(gridData, tempSelect.roomId);
 
-    // ===================== RENDER =====================
     return (
         <div className="container mx-auto max-w-[1600px] p-4 sm:p-6 space-y-6 animate-in fade-in duration-500 pb-10 min-h-screen bg-gray-50/30">
 
@@ -549,7 +542,6 @@ export default function CheckInPanel() {
                                         {tempSelect.roomId ? (
                                             <div className="space-y-3">
                                                 <div className="flex justify-between items-center bg-white p-2 rounded border border-blue-200">
-                                                    {/* USO DE LA VARIABLE CORREGIDA PARA MOSTRAR NUMERO */}
                                                     <span className="font-bold text-blue-900">
                                                         Hab {habitacionSeleccionadaPanel?.habitacion.numero || "?"}
                                                     </span>
@@ -648,18 +640,14 @@ export default function CheckInPanel() {
                                 {selecciones.map((sel, idx) => {
                                     const isActive = idx === habitacionActivaIndex;
                                     const ocupantes = sel.huespedes || [];
-                                    const estaVacia = ocupantes.length === 0;
-
                                     return (
                                         <div
                                             key={idx}
                                             onClick={() => { setHabitacionActivaIndex(idx); limpiarFormularioHuesped(); }}
-                                            className={`p-3 rounded-lg border transition-all cursor-pointer relative ${isActive ? "bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-200" : "bg-white border-gray-200 hover:border-blue-200"} ${estaVacia && !isActive ? "border-red-200 bg-red-50/30" : ""}`}
+                                            className={`p-3 rounded-lg border transition-all cursor-pointer relative ${isActive ? "bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-200" : "bg-white border-gray-200 hover:border-blue-200"}`}
                                         >
                                             <div className="flex justify-between items-start mb-2">
-                                                <span className={`font-bold text-lg ${estaVacia ? "text-red-700" : "text-gray-800"}`}>
-                                                    Hab {sel.numero} {estaVacia && "⚠️"}
-                                                </span>
+                                                <span className="font-bold text-gray-800 text-lg">Hab {sel.numero}</span>
                                                 {isActive && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full">Editando</span>}
                                             </div>
                                             <hr className="my-2 border-gray-200" />
@@ -671,7 +659,7 @@ export default function CheckInPanel() {
                                                             {a.apellido}
                                                         </span>
                                                     ))}
-                                                    {ocupantes.length === 0 && <span className="text-[10px] text-red-500 italic font-medium">Requerido: Agregar al menos 1</span>}
+                                                    {ocupantes.length === 0 && <span className="text-[10px] text-gray-400 italic">Sin huéspedes asignados</span>}
                                                 </div>
                                             </div>
                                         </div>
@@ -692,9 +680,29 @@ export default function CheckInPanel() {
                             </CardHeader>
                             <div className="px-6 pb-4">
                                 <div className="flex gap-2 mb-2">
-                                    <Input id="input-apellido" placeholder="Apellido" value={searchApellido} disabled={checkInExitoso} onChange={(e) => setSearchApellido(e.target.value.toUpperCase())} />
-                                    <Input placeholder="Nombre" value={searchNombre} disabled={checkInExitoso} onChange={(e) => setSearchNombre(e.target.value.toUpperCase())} />
-                                    <Input placeholder="DNI" value={searchDocumento} disabled={checkInExitoso} onChange={(e) => setSearchDocumento(e.target.value)} />
+                                    {/* VALIDACIÓN: onInput con handlers regex */}
+                                    <Input
+                                        id="input-apellido"
+                                        placeholder="Apellido"
+                                        value={searchApellido}
+                                        disabled={checkInExitoso}
+                                        onInput={handleTextInput}
+                                        onChange={(e) => setSearchApellido(e.target.value.toUpperCase())}
+                                    />
+                                    <Input
+                                        placeholder="Nombre"
+                                        value={searchNombre}
+                                        disabled={checkInExitoso}
+                                        onInput={handleTextInput}
+                                        onChange={(e) => setSearchNombre(e.target.value.toUpperCase())}
+                                    />
+                                    <Input
+                                        placeholder="DNI"
+                                        value={searchDocumento}
+                                        disabled={checkInExitoso}
+                                        onInput={handleNumberInput}
+                                        onChange={(e) => setSearchDocumento(e.target.value)}
+                                    />
                                 </div>
                                 <div className="flex justify-end gap-2">
                                     <Button onClick={buscarHuesped} disabled={checkInExitoso} className="bg-blue-600 hover:bg-blue-700 text-white">BUSCAR</Button>
@@ -717,7 +725,6 @@ export default function CheckInPanel() {
                                                     size="sm"
                                                     variant={isTitular ? "default" : "secondary"}
                                                     className={isTitular ? "bg-green-600" : "bg-green-50 text-green-700 hover:bg-green-100 border border-green-200"}
-                                                    // VALIDACION EDAD EN BOTON TITULAR
                                                     onClick={() => {
                                                         if (!h.fechaNac) {
                                                             showAlert("warning", "Datos Incompletos", `El huésped ${h.nombre} no tiene fecha de nacimiento.`);
