@@ -3,11 +3,12 @@
 import { useState } from "react";
 import {
     UserPlus,
-    Users,
     Search as SearchIcon,
-    ArrowLeft, // Nuevo icono para volver
+    ArrowLeft,
 } from "lucide-react";
 
+// --- IMPORTS API Y DTOs ---
+// Ajusta la ruta de importación según tu estructura de carpetas
 import { HuespedApi } from "@/src/api/huesped.api";
 import { HuespedDTO } from "@/src/dto/Huesped/Huesped.dto";
 import { AltaHuespedRequestDTO } from "@/src/dto/Huesped/AltaHuespedRequest.dto";
@@ -17,15 +18,25 @@ import { BuscarHuespedRequestDTO } from "@/src/dto/Huesped/BuscarHuespedRequest.
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ModalAlert from "@/components/modalAlert/modalAlert";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
+// ============================================================================
 // COMPONENTE PRINCIPAL
+// ============================================================================
 export function GuestManagement() {
-    // El estado controla qué vista se muestra. Por defecto 'buscar'.
     const [view, setView] = useState<"buscar" | "alta">("buscar");
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* CONTENIDO: Renderizado condicional basado en la vista actual */}
             <div className="bg-white rounded-xl border border-rose-100 shadow-sm overflow-hidden">
                 {view === "buscar" ? (
                     <BuscarHuespedForm onGoToCreate={() => setView("alta")} />
@@ -37,7 +48,9 @@ export function GuestManagement() {
     );
 }
 
-// --- FORMULARIO DE ALTA ---
+// ============================================================================
+// FORMULARIO DE ALTA (Adaptado a api.alta)
+// ============================================================================
 
 interface AltaHuespedFormProps {
     onBack: () => void;
@@ -46,20 +59,47 @@ interface AltaHuespedFormProps {
 function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
     const api = new HuespedApi();
 
+    // Estados para Alertas
     const [modalOpen, setModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
     const [modalTitle, setModalTitle] = useState('');
     const [modalMessage, setModalMessage] = useState('');
 
-    const showAlert = (
-        type: 'info' | 'success' | 'warning' | 'error',
-        title: string,
-        message: string
-    ) => {
+    // Estados para Confirmación de Duplicado
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [pendingPayload, setPendingPayload] = useState<AltaHuespedRequestDTO | null>(null);
+
+    const showAlert = (type: 'info' | 'success' | 'warning' | 'error', title: string, message: string) => {
         setModalType(type);
         setModalTitle(title);
         setModalMessage(message);
         setModalOpen(true);
+    };
+
+    const enviarDatos = async (payload: AltaHuespedRequestDTO, formElement?: HTMLFormElement) => {
+        try {
+            // CORRECCIÓN: Usamos el método .alta() definido en tu API
+            const res = await api.alta(payload);
+
+            if (res.resultado.id === 0) {
+                // ÉXITO
+                showAlert("success", "Huésped creado", "El huésped fue cargado exitosamente.");
+                if (formElement) formElement.reset();
+                setPendingPayload(null);
+            }
+            else if (res.resultado.id === 3) {
+                // ADVERTENCIA (Duplicado)
+                setPendingPayload(payload);
+                setConfirmOpen(true);
+            }
+            else {
+                // ERROR
+                showAlert("error", "Error al crear huésped", res.resultado.mensaje);
+            }
+        } catch (err) {
+            console.error(err);
+            showAlert("error", "Error inesperado", "No se pudo conectar con el servidor.");
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -71,7 +111,7 @@ function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
         const numVal = data.get("numero");
 
         if (!cpVal || Number(cpVal) <= 0) {
-            showAlert("warning", "Datos incompletos", "El código postal debe ser un número positivo.");
+            showAlert("warning", "Datos incompletos", "El código postal debe ser positivo.");
             return;
         }
         if (!numVal || Number(numVal) <= 0) {
@@ -80,13 +120,12 @@ function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
         }
 
         const payload: AltaHuespedRequestDTO = {
+            aceptarIgualmente: false,
             huesped: {
                 idHuesped: null,
                 nombre: String(data.get("nombre") ?? ""),
                 apellido: String(data.get("apellido") ?? ""),
-                tipoDocumento: {
-                    tipoDocumento: String(data.get("tipoDocumento") ?? ""),
-                },
+                tipoDocumento: { tipoDocumento: String(data.get("tipoDocumento") ?? "") },
                 numDoc: String(data.get("numDoc") ?? ""),
                 posicionIva: String(data.get("posicionIva") ?? ""),
                 cuit: String(data.get("cuit") ?? "") || null,
@@ -106,36 +145,25 @@ function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
                     pais: String(data.get("pais") ?? ""),
                     id: null,
                 },
-                idsEstadias: [],
+                estadias: [],
                 eliminado: false,
             },
         };
 
-        try {
-            const res = await api.alta(payload);
-            if (res.resultado.id === 0) {
-                showAlert("success", "Huésped creado", "El huésped fue cargado exitosamente.");
-                form.reset();
-                // Opcional: Podrías llamar a onBack() aquí si quieres volver a la búsqueda tras el éxito
-            } else {
-                showAlert("error", "Error al crear huésped", res.resultado.mensaje);
-            }
-        } catch (err) {
-            console.error(err);
-            showAlert("error", "Error inesperado", "Ocurrió un error inesperado al guardar el huésped.");
-        }
+        await enviarDatos(payload, form);
+    };
+
+    const handleConfirmarDuplicado = async () => {
+        if (!pendingPayload) return;
+        const nuevoPayload = { ...pendingPayload, aceptarIgualmente: true };
+        setConfirmOpen(false);
+        await enviarDatos(nuevoPayload);
     };
 
     return (
         <>
             <div className="border-b border-rose-100 px-6 py-4 bg-rose-50/30 flex items-center gap-3">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onBack}
-                    className="hover:bg-rose-100 text-rose-900"
-                    type="button"
-                >
+                <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-rose-100 text-rose-900">
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div>
@@ -144,41 +172,37 @@ function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
                 </div>
             </div>
 
-            <form id="formAltaHuesped" onSubmit={handleSubmit} className="px-6 py-6 space-y-6">
+            <form onSubmit={handleSubmit} className="px-6 py-6 space-y-6">
 
-                {/* 1. DATOS PERSONALES */}
+                {/* 1. Datos Personales */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">Apellido *</label>
-                        <Input name="apellido" placeholder="Ingrese apellido" required className="bg-white" />
+                        <Input name="apellido" placeholder="Pérez" required className="bg-white" />
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">Nombre *</label>
-                        <Input name="nombre" placeholder="Ingrese nombre" required className="bg-white" />
+                        <Input name="nombre" placeholder="Juan" required className="bg-white" />
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">Tipo Doc. *</label>
-                        <select
-                            name="tipoDocumento"
-                            className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
-                            required
-                        >
+                        <select name="tipoDocumento" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" required>
                             <option value="DNI">DNI</option>
                             <option value="Pasaporte">Pasaporte</option>
-                            <option value="LE">Libreta de Enrolamiento (LE)</option>
-                            <option value="LC">Libreta Cívica (LC)</option>
+                            <option value="LE">LE</option>
+                            <option value="LC">LC</option>
                         </select>
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">Número Doc. *</label>
-                        <Input name="numDoc" placeholder="Ingrese número" required className="bg-white" />
+                        <Input name="numDoc" placeholder="12345678" required className="bg-white" />
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">CUIT</label>
-                        <Input name="cuit" placeholder="XX-XXXXXXXX-X" className="bg-white" />
+                        <Input name="cuit" placeholder="20-12345678-9" className="bg-white" />
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">Fecha Nac. *</label>
@@ -189,100 +213,85 @@ function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">Posición IVA *</label>
-                        <select
-                            name="posicionIva"
-                            className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
-                            required
-                        >
+                        <select name="posicionIva" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" required>
                             <option>Consumidor Final</option>
                             <option>Responsable Inscripto</option>
+                            <option>Monotributista</option>
                         </select>
                     </div>
                 </div>
 
-                {/* 2. DIRECCIÓN */}
+                {/* 2. Dirección */}
                 <div className="space-y-4 pt-2">
                     <h3 className="text-sm font-semibold text-rose-950 border-b border-rose-100 pb-1">Dirección</h3>
-
-                    {/* Fila 1: Calle y Número */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="md:col-span-2 space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Calle *</label>
-                            <Input name="calle" placeholder="Nombre de la calle" required className="bg-white" />
+                            <Input name="calle" required className="bg-white" />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Número *</label>
-                            <Input name="numero" type="number" min={1} placeholder="123" required className="bg-white" />
+                            <Input name="numero" type="number" min={1} required className="bg-white" />
                         </div>
                     </div>
-
-                    {/* Fila 2: Depto, Piso, CP, Localidad */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Depto</label>
-                            <Input name="departamento" placeholder="-" className="bg-white" />
+                            <Input name="departamento" className="bg-white" />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Piso</label>
-                            <Input name="piso" placeholder="-" className="bg-white" />
+                            <Input name="piso" className="bg-white" />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">CP *</label>
-                            <Input name="cp" type="number" min={1} required placeholder="0000" className="bg-white" />
+                            <Input name="cp" type="number" min={1} required className="bg-white" />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Localidad *</label>
-                            <Input name="localidad" placeholder="Localidad" required className="bg-white" />
+                            <Input name="localidad" required className="bg-white" />
                         </div>
                     </div>
-
-                    {/* Fila 3: Provincia y País */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Provincia *</label>
-                            <Input name="provincia" placeholder="Provincia" required className="bg-white" />
+                            <Input name="provincia" required className="bg-white" />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">País *</label>
-                            <Input name="pais" placeholder="País" required className="bg-white" />
+                            <Input name="pais" required className="bg-white" />
                         </div>
                     </div>
                 </div>
 
-                {/* 3. OTROS DATOS */}
+                {/* 3. Otros Datos */}
                 <div className="space-y-4 pt-2">
                     <h3 className="text-sm font-semibold text-rose-950 border-b border-rose-100 pb-1">Otros Datos</h3>
-
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Teléfono *</label>
-                            <Input name="telefono" placeholder="+54 11 ..." required className="bg-white" />
+                            <Input name="telefono" required className="bg-white" />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Email</label>
-                            <Input name="email" type="email" placeholder="ejemplo@mail.com" className="bg-white" />
+                            <Input name="email" type="email" className="bg-white" />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Nacionalidad *</label>
-                            <Input name="nacionalidad" placeholder="Nacionalidad" required className="bg-white" />
+                            <Input name="nacionalidad" required className="bg-white" />
                         </div>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-gray-700">Ocupación *</label>
-                            <Input name="ocupacion" placeholder="Ocupación" required className="bg-white" />
+                            <Input name="ocupacion" required className="bg-white" />
                         </div>
                     </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-6 border-t border-rose-100 mt-6">
-                    <Button type="button" variant="outline" onClick={onBack} className="text-rose-900 border-rose-200 hover:bg-rose-50">
-                        Cancelar
-                    </Button>
-                    <Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white min-w-[120px]">
-                        Guardar Huésped
-                    </Button>
+                    <Button type="button" variant="outline" onClick={onBack} className="text-rose-900 border-rose-200 hover:bg-rose-50">Cancelar</Button>
+                    <Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white min-w-[120px]">Guardar Huésped</Button>
                 </div>
             </form>
 
@@ -294,11 +303,34 @@ function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
                 onOk={() => setModalOpen(false)}
                 okText="Aceptar"
             />
+
+            {/* MODAL CONFIRMACIÓN DUPLICADO */}
+            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                <AlertDialogContent className="bg-amber-50 border-amber-200">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-amber-800">Huésped Existente</AlertDialogTitle>
+                        <AlertDialogDescription className="text-amber-700">
+                            El sistema detectó que ya existe un huésped con el mismo tipo y número de documento.<br/><br/>
+                            ¿Desea crearlo de todos modos? Se generará un registro duplicado.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => { setPendingPayload(null); setConfirmOpen(false); }} className="border-amber-200 text-amber-900 hover:bg-amber-100">
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmarDuplicado} className="bg-amber-600 text-white hover:bg-amber-700">
+                            Sí, crear igualmente
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }
 
-// --- FORMULARIO DE BUSQUEDA ---
+// ============================================================================
+// FORMULARIO DE BÚSQUEDA (Adaptado a api.buscar)
+// ============================================================================
 
 interface BuscarHuespedFormProps {
     onGoToCreate: () => void;
@@ -328,7 +360,9 @@ function BuscarHuespedForm({ onGoToCreate }: BuscarHuespedFormProps) {
         };
 
         try {
+            // CORRECCIÓN: Usamos el método .buscar() definido en tu API
             const res = await api.buscar(payload);
+
             if (res.resultado.id === 0) {
                 setResultados(res.huespedesEncontrados);
                 setMensaje(res.huespedesEncontrados.length === 0 ? "No se encontraron resultados." : "");
@@ -410,7 +444,6 @@ function BuscarHuespedForm({ onGoToCreate }: BuscarHuespedFormProps) {
                         </div>
                     )}
 
-                    {/* SECCIÓN DE ALTA AL FINAL DE LOS RESULTADOS */}
                     <div className="mt-8 pt-6 border-t border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-rose-50/30 p-4 rounded-lg">
                         <div className="text-sm text-gray-600 text-center sm:text-left">
                             <p className="font-medium text-rose-950">¿No encuentra al huésped?</p>

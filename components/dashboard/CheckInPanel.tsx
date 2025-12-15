@@ -16,7 +16,7 @@ import {
     AlertTriangle,
     PlusCircle,
     UserPlus,
-    CheckCircle2 // Nuevo icono para el éxito
+    CheckCircle2
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,9 @@ export default function CheckInPanel() {
     const [paso, setPaso] = useState<"GRILLA" | "HUESPEDES">("GRILLA");
     const [loading, setLoading] = useState(false);
 
+    // --- CAMBIO 1: NUEVO ESTADO DE BLOQUEO ---
+    const [checkInExitoso, setCheckInExitoso] = useState(false);
+
     // ESTADOS GRILLA
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
@@ -111,7 +114,7 @@ export default function CheckInPanel() {
 
     // Modales Salida y Éxito
     const [modalSalirOpen, setModalSalirOpen] = useState(false);
-    const [modalExitoOpen, setModalExitoOpen] = useState(false); // NUEVO
+    const [modalExitoOpen, setModalExitoOpen] = useState(false);
 
     // BÚSQUEDA HUESPEDES
     const [searchApellido, setSearchApellido] = useState("");
@@ -128,12 +131,15 @@ export default function CheckInPanel() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
-                setTempSelect({ start: null, end: null, roomId: null });
+                // Si ya fue exitoso, no permitimos limpiar selección con Escape para evitar inconsistencias visuales
+                if (!checkInExitoso) {
+                    setTempSelect({ start: null, end: null, roomId: null });
+                }
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, []);
+    }, [checkInExitoso]); // Dependencia agregada
 
     // --- LOGICA DE GRILLA ---
     const handleBuscarDisponibilidad = async (e?: React.FormEvent) => {
@@ -167,7 +173,6 @@ export default function CheckInPanel() {
 
     const handleCellClick = (roomId: string, dateStr: string, estado: string) => {
         const todayStr = getTodayString();
-        // Si la habitación ya está ocupada (quizás acabamos de hacer check-in), no permite clic
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
         if (!tempSelect.start) {
@@ -272,8 +277,6 @@ export default function CheckInPanel() {
     const volverAGrilla = () => {
         setPaso("GRILLA");
         setTempSelect({ start: null, end: null, roomId: null });
-        // Si volvemos manualmente (botón "Agregar otra"), no forzamos recarga inmediata,
-        // confiamos en los datos actuales. Pero si venimos de un Success, lo forzaremos (ver abajo).
         if (!searched) realizarBusquedaGrilla();
     };
 
@@ -303,6 +306,8 @@ export default function CheckInPanel() {
     };
 
     const toggleHuespedEnActiva = (huesped: Huesped) => {
+        if (checkInExitoso) return; // Protección extra
+
         const index = habitacionActivaIndex;
         if (index < 0 || index >= selecciones.length) return;
 
@@ -339,6 +344,8 @@ export default function CheckInPanel() {
 
     // --- PROCESAMIENTO FINAL ---
     const procesarCheckIn = async () => {
+        if (checkInExitoso) return; // Evitar doble submit si el botón no se deshabilitó a tiempo
+
         if (!titularGlobal) {
             alert("Debe seleccionar un Titular responsable para el Check-In.");
             return;
@@ -372,7 +379,8 @@ export default function CheckInPanel() {
             });
 
             if (res.ok) {
-                // EXITO: Abrir Modal de decisión
+                // EXITO: Abrir Modal y BLOQUEAR ESTADO
+                setCheckInExitoso(true); // <--- CAMBIO 2: Bloquear edición
                 setModalExitoOpen(true);
             } else {
                 const errorText = await res.text();
@@ -393,17 +401,19 @@ export default function CheckInPanel() {
         setTitularGlobal(null);
         setListaHuespedes([]);
         setTempSelect({ start: null, end: null, roomId: null });
+
+        // --- CAMBIO 3: Resetear bloqueo para la nueva sesión ---
+        setCheckInExitoso(false);
         setModalExitoOpen(false);
 
         // 2. Volver a la grilla
         setPaso("GRILLA");
 
-        // 3. RECARGAR DATOS DEL BACKEND (Importante para ver lo ocupado en rojo)
+        // 3. RECARGAR DATOS DEL BACKEND
         realizarBusquedaGrilla();
     };
 
     const handleFinalizarSalir = () => {
-        // Recargar la página completa para limpiar todo
         window.location.reload();
     };
 
@@ -565,7 +575,8 @@ export default function CheckInPanel() {
                                 {titularGlobal ? (
                                     <div className="flex justify-between items-center bg-white p-2 rounded border border-green-200 shadow-sm">
                                         <div className="truncate font-bold text-gray-800">{titularGlobal.apellido}, {titularGlobal.nombre}</div>
-                                        <Button size="sm" variant="ghost" onClick={() => setTitularGlobal(null)} className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></Button>
+                                        {/* Deshabilitamos eliminar si ya es exitoso */}
+                                        <Button size="sm" variant="ghost" disabled={checkInExitoso} onClick={() => setTitularGlobal(null)} className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></Button>
                                     </div>
                                 ) : (
                                     <div className="text-sm text-red-500 italic p-2 border border-dashed border-red-200 rounded bg-red-50/50">
@@ -625,12 +636,12 @@ export default function CheckInPanel() {
                             </CardHeader>
                             <div className="px-6 pb-4">
                                 <div className="flex gap-2 mb-2">
-                                    <Input id="input-apellido" placeholder="Apellido" value={searchApellido} onChange={(e) => setSearchApellido(e.target.value.toUpperCase())} />
-                                    <Input placeholder="Nombre" value={searchNombre} onChange={(e) => setSearchNombre(e.target.value.toUpperCase())} />
-                                    <Input placeholder="DNI" value={searchDocumento} onChange={(e) => setSearchDocumento(e.target.value)} />
+                                    <Input id="input-apellido" placeholder="Apellido" value={searchApellido} disabled={checkInExitoso} onChange={(e) => setSearchApellido(e.target.value.toUpperCase())} />
+                                    <Input placeholder="Nombre" value={searchNombre} disabled={checkInExitoso} onChange={(e) => setSearchNombre(e.target.value.toUpperCase())} />
+                                    <Input placeholder="DNI" value={searchDocumento} disabled={checkInExitoso} onChange={(e) => setSearchDocumento(e.target.value)} />
                                 </div>
                                 <div className="flex justify-end gap-2">
-                                    <Button onClick={buscarHuesped} className="bg-blue-600 hover:bg-blue-700 text-white">BUSCAR</Button>
+                                    <Button onClick={buscarHuesped} disabled={checkInExitoso} className="bg-blue-600 hover:bg-blue-700 text-white">BUSCAR</Button>
                                 </div>
                             </div>
                             <hr className="border-gray-100" />
@@ -651,7 +662,7 @@ export default function CheckInPanel() {
                                                     variant={isTitular ? "default" : "secondary"}
                                                     className={isTitular ? "bg-green-600" : "bg-green-50 text-green-700 hover:bg-green-100 border border-green-200"}
                                                     onClick={() => setTitularGlobal(h)}
-                                                    disabled={isTitular}
+                                                    disabled={isTitular || checkInExitoso}
                                                 >
                                                     {isTitular ? "Es Titular" : "Asignar Titular"}
                                                 </Button>
@@ -661,6 +672,7 @@ export default function CheckInPanel() {
                                                     variant={isEnActiva ? "destructive" : "outline"}
                                                     className={!isEnActiva ? "border-blue-200 text-blue-700 hover:bg-blue-50" : ""}
                                                     onClick={() => toggleHuespedEnActiva(h)}
+                                                    disabled={checkInExitoso}
                                                 >
                                                     {isEnActiva ? "Quitar de Hab" : <><UserPlus className="h-3 w-3 mr-1"/> Agregar a Hab</>}
                                                 </Button>
@@ -674,7 +686,7 @@ export default function CheckInPanel() {
                             <div className="p-4 border-t bg-gray-50 flex flex-wrap gap-3 justify-between items-center">
                                 {/* IZQUIERDA */}
                                 <div className="flex gap-2">
-                                    <Button variant="outline" onClick={volverAGrilla} className="text-gray-700 border-gray-300 hover:bg-gray-100">
+                                    <Button variant="outline" onClick={volverAGrilla} disabled={checkInExitoso} className="text-gray-700 border-gray-300 hover:bg-gray-100">
                                         <PlusCircle className="h-4 w-4 mr-2" />
                                         Agregar otra habitación
                                     </Button>
@@ -691,10 +703,11 @@ export default function CheckInPanel() {
                                     <Button
                                         className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
                                         onClick={procesarCheckIn}
-                                        disabled={loading || !titularGlobal}
+                                        // --- CAMBIO 4: Deshabilitamos si ya fue exitoso ---
+                                        disabled={loading || !titularGlobal || checkInExitoso}
                                     >
                                         <Save className="h-4 w-4 mr-2" />
-                                        Guardar y Finalizar
+                                        {checkInExitoso ? "Procesado" : "Guardar y Finalizar"}
                                     </Button>
 
                                     <Button
@@ -752,9 +765,22 @@ export default function CheckInPanel() {
                 </DialogContent>
             </Dialog>
 
-            {/* 4. Modal de ÉXITO (NUEVO) */}
-            <Dialog open={modalExitoOpen} onOpenChange={setModalExitoOpen}>
-                <DialogContent className="border-green-200 bg-green-50 sm:max-w-md">
+            {/* 4. Modal de ÉXITO (NUEVO y MODIFICADO) */}
+            <Dialog
+                open={modalExitoOpen}
+                onOpenChange={(open) => {
+                    // --- CAMBIO 5: Si intentan cerrar por fuera, forzamos la recarga ---
+                    if (!open) {
+                        handleCargarOtra();
+                    }
+                }}
+            >
+                <DialogContent
+                    className="border-green-200 bg-green-50 sm:max-w-md"
+                    // Opcional: Bloquear clicks fuera y ESC para obligar a usar botones
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                    onEscapeKeyDown={(e) => e.preventDefault()}
+                >
                     <DialogHeader>
                         <DialogTitle className="text-green-800 flex items-center gap-2 text-xl">
                             <CheckCircle2 className="h-6 w-6 text-green-600" />

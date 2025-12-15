@@ -10,7 +10,7 @@ import {
     ArrowRight,
     ListChecks,
     CalendarDays,
-    AlertTriangle
+    AlertTriangle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,18 +22,13 @@ import {
     DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogFooter
+    DialogFooter,
 } from "@/components/ui/dialog";
 
-// Importamos el componente hijo y sus tipos
-// (Asegúrate de que la ruta sea correcta según donde guardaste el archivo anterior)
 import {
     GrillaDisponibilidad,
     type HabitacionDisponibilidad,
-    type DisponibilidadDia
 } from "@/components/GrillaDisponibilidad";
-
-// --- TIPOS LOCALES (Solo los que no vienen de la Grilla) ---
 
 interface Seleccion {
     idHabitacion: string;
@@ -42,10 +37,6 @@ interface Seleccion {
     numero: number;
 }
 
-// --- UTILIDADES ---
-
-// Mantenemos esta utilidad aquí porque la lógica de negocio (handleCellClick) la usa
-// antes de pasar datos al hijo.
 const isDatePast = (dateStr: string) => {
     const checkDate = new Date(dateStr + "T00:00:00");
     const today = new Date();
@@ -53,24 +44,20 @@ const isDatePast = (dateStr: string) => {
     return checkDate < today;
 };
 
-// --- COMPONENTE PRINCIPAL ---
-
 export function RoomManagement() {
-
     // Estados de búsqueda
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
     const [loading, setLoading] = useState(false);
 
-    // Ahora tipamos esto con la interfaz importada
     const [gridData, setGridData] = useState<HabitacionDisponibilidad[]>([]);
     const [searched, setSearched] = useState(false);
 
-    // Selección temporal (coincide con la prop tempSelection del hijo)
+    // Selección temporal
     const [tempSelect, setTempSelect] = useState<{
-        start: string | null,
-        end: string | null,
-        roomId: string | null
+        start: string | null;
+        end: string | null;
+        roomId: string | null;
     }>({ start: null, end: null, roomId: null });
 
     // Lista de reservas
@@ -79,16 +66,22 @@ export function RoomManagement() {
     // Modales
     const [modalOpen, setModalOpen] = useState(false);
     const [alertOpen, setAlertOpen] = useState(false);
-    const [guestData, setGuestData] = useState({ nombre: "", apellido: "", telefono: "" });
+    const [guestData, setGuestData] = useState({
+        nombre: "",
+        apellido: "",
+        telefono: "",
+    });
 
-    // Formateo simple para la UI lateral
     const formatearFecha = (fechaStr: string) => {
         if (!fechaStr) return "-";
         const date = new Date(fechaStr + "T00:00:00");
-        return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit" }).format(date);
+        return new Intl.DateTimeFormat("es-AR", {
+            day: "2-digit",
+            month: "2-digit",
+        }).format(date);
     };
 
-    // --- LISTENER ESCAPE ---
+    // ESC para cancelar selección
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
@@ -99,10 +92,10 @@ export function RoomManagement() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
-    // --- LOGICA ---
-
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!desde || !hasta) return;
 
         if (new Date(desde) > new Date(hasta)) {
             alert("La fecha 'Desde' no puede ser mayor a 'Hasta'");
@@ -114,12 +107,15 @@ export function RoomManagement() {
         setSearched(false);
 
         try {
-            const res = await fetch(`http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}`);
+            const res = await fetch(
+                `http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}`
+            );
             if (!res.ok) throw new Error("Error API");
             const data: HabitacionDisponibilidad[] = await res.json();
             setGridData(data);
             setSearched(true);
-        } catch (e) {
+        } catch (err) {
+            console.error(err);
             setGridData([]);
             setSearched(true);
         } finally {
@@ -127,25 +123,36 @@ export function RoomManagement() {
         }
     };
 
-    // Esta función se pasa como prop al hijo
-    const handleCellClick = (roomId: string, dateStr: string, estado: string, numero: number) => {
-        // Validación de negocio
-        if (isDatePast(dateStr)) return; // Bloqueo extra por seguridad
+    // Click en celda de disponibilidad
+    const handleCellClick = (
+        roomId: string,
+        dateStr: string,
+        estado: string,
+        numero: number
+    ) => {
+        if (isDatePast(dateStr)) return;
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
         if (estado === "RESERVADA") {
-            alert(`La habitación ${numero} ya está reservada el día ${formatearFecha(dateStr)}.`);
+            alert(
+                `La habitación ${numero} ya está reservada el día ${formatearFecha(
+                    dateStr
+                )}.`
+            );
             return;
         }
 
-        // Lógica de selección de rango (igual que antes)
         if (!tempSelect.start) {
             setTempSelect({ start: dateStr, end: null, roomId });
-        } else if (tempSelect.start && !tempSelect.end) {
+            return;
+        }
+
+        if (tempSelect.start && !tempSelect.end) {
             if (tempSelect.roomId !== roomId) {
                 setTempSelect({ start: dateStr, end: null, roomId });
                 return;
             }
+
             const start = tempSelect.start;
             let from = start;
             let to = dateStr;
@@ -155,47 +162,63 @@ export function RoomManagement() {
                 to = start;
             }
 
-            // Validar que no haya conflictos en medio del rango
-            const habitacionActual = gridData.find(h => h.habitacion.id_habitacion === roomId);
+            // Validar conflictos dentro del rango
+            const habitacionActual = gridData.find(
+                (h) =>
+                    (h.habitacion.id_habitacion ?? h.habitacion.idHabitacion) === roomId
+            );
+
             if (habitacionActual) {
-                const diaConflicto = habitacionActual.disponibilidad.find(dia => {
+                const diaConflicto = habitacionActual.disponibilidad.find((dia) => {
                     const enRango = dia.fecha >= from && dia.fecha <= to;
                     const esPasado = isDatePast(dia.fecha);
-                    return enRango && (["OCUPADA", "MANTENIMIENTO", "RESERVADA"].includes(dia.estado) || esPasado);
+                    return (
+                        enRango &&
+                        (["OCUPADA", "MANTENIMIENTO", "RESERVADA"].includes(dia.estado) ||
+                            esPasado)
+                    );
                 });
 
                 if (diaConflicto) {
-                    alert(`Rango inválido (contiene días ocupados o pasados).`);
+                    alert("Rango inválido (contiene días ocupados o pasados).");
                     setTempSelect({ start: null, end: null, roomId: null });
                     return;
                 }
             }
+
             setTempSelect({ start: from, end: to, roomId });
-        } else {
-            // Reiniciar selección si ya había un rango completo
-            setTempSelect({ start: dateStr, end: null, roomId });
+            return;
         }
+
+        // Si ya había un rango completo, reiniciar
+        setTempSelect({ start: dateStr, end: null, roomId });
     };
 
     const agregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
-        const hab = gridData.find(h => h.habitacion.id_habitacion === tempSelect.roomId);
+
+        const hab = gridData.find(
+            (h) =>
+                (h.habitacion.id_habitacion ?? h.habitacion.idHabitacion) ===
+                tempSelect.roomId
+        );
         if (!hab) return;
 
-        setSelecciones(prev => [
+        setSelecciones((prev) => [
             ...prev,
             {
                 idHabitacion: tempSelect.roomId!,
                 fechaDesde: tempSelect.start!,
                 fechaHasta: tempSelect.end!,
-                numero: hab.habitacion.numero
-            }
+                numero: hab.habitacion.numero,
+            },
         ]);
+
         setTempSelect({ start: null, end: null, roomId: null });
     };
 
     const eliminarSeleccion = (index: number) => {
-        setSelecciones(prev => prev.filter((_, i) => i !== index));
+        setSelecciones((prev) => prev.filter((_, i) => i !== index));
     };
 
     const checkPendingSelection = () => {
@@ -218,25 +241,61 @@ export function RoomManagement() {
         setModalOpen(true);
     };
 
+    // ✅ AHORA SÍ PERSISTE: POST al backend
     const handleConfirmarReserva = async () => {
         if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
             alert("Complete todos los campos del huésped");
             return;
         }
-        alert("¡Reserva creada exitosamente!");
-        setSelecciones([]);
-        setModalOpen(false);
-        setGuestData({ nombre: "", apellido: "", telefono: "" });
-        setSearched(false);
-        setDesde("");
-        setHasta("");
+
+        if (selecciones.length === 0) {
+            alert("No hay habitaciones seleccionadas");
+            return;
+        }
+
+        const payload = {
+            nombreCliente: guestData.nombre,
+            apellidoCliente: guestData.apellido,
+            telefonoCliente: guestData.telefono,
+            reservas: selecciones.map((sel) => ({
+                idHabitacion: sel.idHabitacion,
+                fechaDesde: sel.fechaDesde,
+                fechaHasta: sel.fechaHasta,
+            })),
+        };
+
+        try {
+            const res = await fetch("http://localhost:8080/Reserva/Crear", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || "Error al crear la reserva");
+            }
+
+            alert("¡Reserva creada exitosamente!");
+
+            // limpiar estado UI
+            setSelecciones([]);
+            setModalOpen(false);
+            setGuestData({ nombre: "", apellido: "", telefono: "" });
+            setSearched(false);
+            setDesde("");
+            setHasta("");
+            setTempSelect({ start: null, end: null, roomId: null });
+        } catch (err) {
+            console.error(err);
+            alert(
+                "No se pudo crear la reserva. Detalle: " + (err as Error).message
+            );
+        }
     };
 
-    // --- RENDER ---
     return (
         <div className="container mx-auto max-w-7xl p-4 sm:p-6 space-y-8 animate-in fade-in duration-500 pb-10 min-h-screen">
-
-            {/* HEADER */}
             <Card className="bg-white border-rose-100 shadow-sm">
                 <CardContent className="p-6">
                     <div className="flex items-center gap-2 mb-4">
@@ -244,21 +303,41 @@ export function RoomManagement() {
                             <CalendarRange className="h-5 w-5 text-rose-900" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-rose-950">Gestión de Reservas</h2>
-                            <p className="text-sm text-gray-500">Consulta disponibilidad y arma tu reserva.</p>
+                            <h2 className="text-lg font-semibold text-rose-950">
+                                Gestión de Reservas
+                            </h2>
+                            <p className="text-sm text-gray-500">
+                                Consulta disponibilidad y arma tu reserva.
+                            </p>
                         </div>
                     </div>
 
-                    <form onSubmit={handleBuscar} className="flex flex-col sm:flex-row gap-4 items-end">
+                    <form
+                        onSubmit={handleBuscar}
+                        className="flex flex-col sm:flex-row gap-4 items-end"
+                    >
                         <div className="w-full sm:w-1/4">
                             <label className="text-sm font-medium text-gray-700">Desde</label>
-                            <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} required />
+                            <Input
+                                type="date"
+                                value={desde}
+                                onChange={(e) => setDesde(e.target.value)}
+                                required
+                            />
                         </div>
                         <div className="w-full sm:w-1/4">
                             <label className="text-sm font-medium text-gray-700">Hasta</label>
-                            <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} required />
+                            <Input
+                                type="date"
+                                value={hasta}
+                                onChange={(e) => setHasta(e.target.value)}
+                                required
+                            />
                         </div>
-                        <Button className="bg-rose-900 text-white hover:bg-rose-800 w-full sm:w-auto" disabled={loading}>
+                        <Button
+                            className="bg-rose-900 text-white hover:bg-rose-800 w-full sm:w-auto"
+                            disabled={loading}
+                        >
                             <Search className="h-4 w-4 mr-2" />
                             {loading ? "Buscando..." : "Buscar Disponibilidad"}
                         </Button>
@@ -266,11 +345,8 @@ export function RoomManagement() {
                 </CardContent>
             </Card>
 
-            {/* CONTENEDOR PRINCIPAL */}
             {searched && (
                 <div className="flex flex-col lg:flex-row gap-6 items-start animate-in slide-in-from-bottom-4 duration-500">
-
-                    {/* ZONA DE LA GRILLA (REFACTORIZADA) */}
                     <div className="w-full lg:flex-1 min-w-0">
                         <Card className="border-rose-100 shadow-sm overflow-hidden">
                             <div className="p-4 border-b border-rose-100 bg-rose-50/30 flex justify-between items-center">
@@ -278,27 +354,33 @@ export function RoomManagement() {
                                     <Bed className="h-4 w-4" /> Estado de Habitaciones
                                 </h3>
                                 <span className="text-xs text-gray-400 hidden lg:inline-block">
-                                    Presiona <kbd className="font-mono bg-gray-100 px-1 rounded border">ESC</kbd> para cancelar selección
-                                </span>
+                  Presiona{" "}
+                                    <kbd className="font-mono bg-gray-100 px-1 rounded border">
+                    ESC
+                  </kbd>{" "}
+                                    para cancelar selección
+                </span>
                             </div>
 
-                            {/* Aquí inyectamos el componente reutilizable */}
                             <GrillaDisponibilidad
                                 data={gridData}
                                 loading={loading}
                                 tempSelection={tempSelect}
                                 finalSelections={selecciones}
                                 onCellClick={handleCellClick}
-                                modo="reserva" // Usamos el color rojo/rose definido en la grilla para este modo
+                                modo="reserva"
                             />
                         </Card>
                     </div>
 
-                    {/* PANELES LATERALES (Sin cambios mayores) */}
                     <aside className="w-full lg:w-80 shrink-0 space-y-4 sticky top-6 animate-in slide-in-from-right duration-500">
-
-                        {/* Panel de Selección Actual */}
-                        <Card className={`border-2 transition-all shadow-md ${tempSelect.roomId ? 'border-blue-400 bg-blue-50/50' : 'border-gray-100 bg-gray-50 opacity-80'}`}>
+                        <Card
+                            className={`border-2 transition-all shadow-md ${
+                                tempSelect.roomId
+                                    ? "border-blue-400 bg-blue-50/50"
+                                    : "border-gray-100 bg-gray-50 opacity-80"
+                            }`}
+                        >
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm font-bold uppercase text-gray-500 flex items-center gap-2">
                                     <CalendarDays className="h-4 w-4" />
@@ -309,10 +391,25 @@ export function RoomManagement() {
                                 {tempSelect.roomId ? (
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center bg-white p-2 rounded border border-blue-200">
-                                            <span className="font-bold text-blue-900">Hab {gridData.find(h => h.habitacion.id_habitacion === tempSelect.roomId)?.habitacion.numero}</span>
+                      <span className="font-bold text-blue-900">
+                        Hab{" "}
+                          {
+                              gridData.find(
+                                  (h) =>
+                                      (h.habitacion.id_habitacion ??
+                                          h.habitacion.idHabitacion) === tempSelect.roomId
+                              )?.habitacion.numero
+                          }
+                      </span>
                                             <div className="text-xs text-right">
-                                                <div className="text-gray-500">Entrada: {formatearFecha(tempSelect.start!)}</div>
-                                                {tempSelect.end && <div className="text-gray-500">Salida: {formatearFecha(tempSelect.end)}</div>}
+                                                <div className="text-gray-500">
+                                                    Entrada: {formatearFecha(tempSelect.start!)}
+                                                </div>
+                                                {tempSelect.end && (
+                                                    <div className="text-gray-500">
+                                                        Salida: {formatearFecha(tempSelect.end)}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -321,23 +418,31 @@ export function RoomManagement() {
                                             onClick={agregarSeleccion}
                                             disabled={!tempSelect.end}
                                         >
-                                            {tempSelect.end ? "Agregar a la Lista" : "Seleccione fecha fin"}
+                                            {tempSelect.end
+                                                ? "Agregar a la Lista"
+                                                : "Seleccione fecha fin"}
                                         </Button>
                                     </div>
                                 ) : (
-                                    <p className="text-xs text-gray-400 italic">Haz click en la grilla para comenzar una selección.</p>
+                                    <p className="text-xs text-gray-400 italic">
+                                        Haz click en la grilla para comenzar una selección.
+                                    </p>
                                 )}
                             </CardContent>
                         </Card>
 
-                        {/* Carrito de Reservas */}
                         <Card className="border-gray-200 shadow-sm h-fit max-h-[500px] flex flex-col">
                             <CardHeader className="pb-3 border-b bg-gray-50">
                                 <CardTitle className="text-base font-semibold text-gray-800 flex justify-between items-center">
-                                    <span className="flex items-center gap-2"><ListChecks className="h-4 w-4"/> Mis Reservas</span>
-                                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{selecciones.length}</span>
+                  <span className="flex items-center gap-2">
+                    <ListChecks className="h-4 w-4" /> Mis Reservas
+                  </span>
+                                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                    {selecciones.length}
+                  </span>
                                 </CardTitle>
                             </CardHeader>
+
                             <CardContent className="p-0 overflow-y-auto flex-1 custom-scrollbar">
                                 {selecciones.length === 0 ? (
                                     <div className="p-6 text-center text-sm text-gray-400">
@@ -346,11 +451,18 @@ export function RoomManagement() {
                                 ) : (
                                     <div className="divide-y divide-gray-100">
                                         {selecciones.map((sel, i) => (
-                                            <div key={i} className="p-3 hover:bg-gray-50 transition flex justify-between items-center group">
+                                            <div
+                                                key={i}
+                                                className="p-3 hover:bg-gray-50 transition flex justify-between items-center group"
+                                            >
                                                 <div>
-                                                    <div className="font-semibold text-gray-800 text-sm">Habitación {sel.numero}</div>
+                                                    <div className="font-semibold text-gray-800 text-sm">
+                                                        Habitación {sel.numero}
+                                                    </div>
                                                     <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                                                        {formatearFecha(sel.fechaDesde)} <ArrowRight className="h-3 w-3"/> {formatearFecha(sel.fechaHasta)}
+                                                        {formatearFecha(sel.fechaDesde)}{" "}
+                                                        <ArrowRight className="h-3 w-3" />{" "}
+                                                        {formatearFecha(sel.fechaHasta)}
                                                     </div>
                                                 </div>
                                                 <Button
@@ -378,12 +490,11 @@ export function RoomManagement() {
                                 </div>
                             )}
                         </Card>
-
                     </aside>
                 </div>
             )}
 
-            {/* MODAL DE ALERTA (Selección pendiente) */}
+            {/* MODAL DE ALERTA */}
             <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
                 <DialogContent className="sm:max-w-md border-amber-200 bg-amber-50">
                     <DialogHeader>
@@ -392,26 +503,39 @@ export function RoomManagement() {
                             Selección Pendiente
                         </DialogTitle>
                         <DialogDescription className="text-amber-700">
-                            Tienes una habitación seleccionada en la grilla que no has agregado a tu lista.
-                            <br/><br/>
+                            Tienes una habitación seleccionada en la grilla que no has agregado
+                            a tu lista.
+                            <br />
+                            <br />
                             ¿Deseas agregarla a la reserva o descartarla?
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter className="gap-2 sm:gap-0">
-                        <Button variant="outline" onClick={() => setAlertOpen(false)} className="border-amber-200 text-amber-900 hover:bg-amber-100">
+                        <Button
+                            variant="outline"
+                            onClick={() => setAlertOpen(false)}
+                            className="border-amber-200 text-amber-900 hover:bg-amber-100"
+                        >
                             Cancelar
                         </Button>
-                        <Button onClick={handleDiscardAndProceed} variant="ghost" className="text-red-600 hover:bg-red-50">
+                        <Button
+                            onClick={handleDiscardAndProceed}
+                            variant="ghost"
+                            className="text-red-600 hover:bg-red-50"
+                        >
                             Descartar
                         </Button>
-                        <Button onClick={handleAddAndProceed} className="bg-blue-600 text-white hover:bg-blue-700">
+                        <Button
+                            onClick={handleAddAndProceed}
+                            className="bg-blue-600 text-white hover:bg-blue-700"
+                        >
                             Agregar y Continuar
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL DE FINALIZAR RESERVA */}
+            {/* MODAL FINALIZAR */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="sm:max-w-md border-rose-100">
                     <DialogHeader>
@@ -423,18 +547,44 @@ export function RoomManagement() {
                             Estás por reservar <b>{selecciones.length} habitaciones</b>.
                         </DialogDescription>
                     </DialogHeader>
+
                     <div className="space-y-4 py-2">
-                        <Input placeholder="Nombre" value={guestData.nombre} onChange={e => setGuestData({ ...guestData, nombre: e.target.value })} />
-                        <Input placeholder="Apellido" value={guestData.apellido} onChange={e => setGuestData({ ...guestData, apellido: e.target.value })} />
-                        <Input placeholder="Teléfono" value={guestData.telefono} onChange={e => setGuestData({ ...guestData, telefono: e.target.value })} />
+                        <Input
+                            placeholder="Nombre"
+                            value={guestData.nombre}
+                            onChange={(e) =>
+                                setGuestData({ ...guestData, nombre: e.target.value })
+                            }
+                        />
+                        <Input
+                            placeholder="Apellido"
+                            value={guestData.apellido}
+                            onChange={(e) =>
+                                setGuestData({ ...guestData, apellido: e.target.value })
+                            }
+                        />
+                        <Input
+                            placeholder="Teléfono"
+                            value={guestData.telefono}
+                            onChange={(e) =>
+                                setGuestData({ ...guestData, telefono: e.target.value })
+                            }
+                        />
                     </div>
+
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleConfirmarReserva} className="bg-rose-900 text-white">Confirmar Reserva</Button>
+                        <Button variant="outline" onClick={() => setModalOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleConfirmarReserva}
+                            className="bg-rose-900 text-white"
+                        >
+                            Confirmar Reserva
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
         </div>
     );
 }
