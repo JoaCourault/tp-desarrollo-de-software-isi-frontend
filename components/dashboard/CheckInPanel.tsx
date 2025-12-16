@@ -110,12 +110,10 @@ const esMayorDeEdad = (fechaNacString: string) => {
 
 // --- HANDLERS DE VALIDACIÓN DE INPUTS ---
 const handleTextInput = (e: React.FormEvent<HTMLInputElement>) => {
-    // Solo permite letras, espacios y acentos
     e.currentTarget.value = e.currentTarget.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
 };
 
 const handleNumberInput = (e: React.FormEvent<HTMLInputElement>) => {
-    // Solo permite números
     e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, '');
 };
 
@@ -410,31 +408,18 @@ export default function CheckInPanel() {
 
         setLoading(true);
 
-        // --- CONSTRUCCIÓN DEL PAYLOAD CORRECTO PARA EL BACKEND ---
-        // 1. Recopilar todos los IDs de huéspedes (Titular + Acompañantes de todas las habitaciones)
-        const todosLosHuespedesIds = new Set<string>();
-        todosLosHuespedesIds.add(titularGlobal.idHuesped); // Agregamos al titular
-
-        selecciones.forEach(sel => {
-            if (sel.huespedes) {
-                sel.huespedes.forEach(h => todosLosHuespedesIds.add(h.idHuesped));
-            }
-        });
-
-        // 2. Calcular cantidad de noches (asumiendo que viene de la primera selección o es igual para todas)
-        const fechaInicio = new Date(selecciones[0].fechaDesde);
-        const fechaFin = new Date(selecciones[0].fechaHasta);
-        const diferenciaTiempo = fechaFin.getTime() - fechaInicio.getTime();
-        const diasDiferencia = Math.ceil(diferenciaTiempo / (1000 * 3600 * 24));
-
-        // 3. Crear el objeto JSON plano que espera Java
+        // --- CONSTRUCCIÓN DEL PAYLOAD PARA BACKEND JAVA (CheckInRequestDTO) ---
+        // 1. Enviamos el ID del titular.
+        // 2. Enviamos la lista de "habitaciones" (HabitacionCheckInDTO).
+        // 3. Concatenamos "T00:00:00" a las fechas para satisfacer LocalDateTime.
         const payload = {
-            checkIn: selecciones[0].fechaDesde, // Formato "YYYY-MM-DD"
-            checkOut: selecciones[0].fechaHasta, // Formato "YYYY-MM-DD"
-            cantNoches: diasDiferencia > 0 ? diasDiferencia : 1, // Mínimo 1 noche
-            idReserva: null, // O el ID si viene de una reserva (aquí asumo null por ahora)
-            idsHabitaciones: selecciones.map(s => s.idHabitacion), // <--- ARRAY PLANO DE STRINGS
-            idsHuespedes: Array.from(todosLosHuespedesIds)         // <--- ARRAY PLANO DE STRINGS
+            idHuespedTitular: titularGlobal.idHuesped,
+            habitaciones: selecciones.map(sel => ({
+                idHabitacion: sel.idHabitacion,
+                fechaDesde: `${sel.fechaDesde}T14:00:00`, // Formato para LocalDateTime
+                fechaHasta: `${sel.fechaHasta}T10:00:00`, // Formato para LocalDateTime
+                acompanantesIds: sel.huespedes?.map(h => h.idHuesped) || []
+            }))
         };
 
         try {
@@ -448,7 +433,6 @@ export default function CheckInPanel() {
                 setCheckInExitoso(true);
                 setModalExitoOpen(true);
             } else {
-                // Intentar leer JSON de error del backend
                 try {
                     const errorJson = await res.json();
                     showAlert("error", "Error en Check-In", errorJson.mensaje || "Error desconocido");
