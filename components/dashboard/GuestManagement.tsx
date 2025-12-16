@@ -61,9 +61,8 @@ export function GuestManagement() {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-150px)]">
-            <div className="bg-white rounded-xl border border-rose-100 shadow-sm overflow-hidden h-full flex flex-col">
-
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[calc(100vh-150px)] h-auto pb-10">
+                <div className="bg-white rounded-xl border border-rose-100 shadow-sm flex flex-col">
                 {view === "buscar" && (
                     <BuscarHuespedForm
                         onGoToCreate={() => setView("alta")}
@@ -120,6 +119,7 @@ interface AltaHuespedFormProps {
 function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
     const api = new HuespedApi();
     const formRef = useRef<HTMLFormElement>(null);
+
 
     // --- MODALES DE ALERTA GENÉRICOS ---
     const [modalAlert, setModalAlert] = useState<{ open: boolean; type: 'info'|'warning'|'error'|'success'; title: string; msg: string }>({
@@ -483,13 +483,13 @@ function BuscarHuespedForm({
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col">
             <div className="border-b border-rose-100 px-6 py-4 bg-rose-50/30">
                 <h2 className="text-lg font-semibold text-rose-950">Buscar Huésped</h2>
                 <p className="text-sm text-gray-600">Filtre por nombre, apellido o documento</p>
             </div>
 
-            <div className="p-6 space-y-6 flex-1 overflow-hidden flex flex-col">
+            <div className="p-6 space-y-6 flex flex-col">
                  <form onSubmit={handleSearch} className="p-4 bg-rose-50/50 rounded-lg border border-rose-100 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                         <div className="space-y-1.5">
@@ -522,7 +522,7 @@ function BuscarHuespedForm({
                     </div>
                 </form>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
+                <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-rose-950 border-b border-rose-100 pb-2">Resultados ({results.length})</h3>
                     {results.length > 0 ? (
                         <div className="grid grid-cols-1 gap-3">

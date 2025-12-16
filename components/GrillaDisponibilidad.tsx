@@ -11,6 +11,7 @@ export interface HabitacionDTO {
 export interface DisponibilidadDia {
     fecha: string; // Formato YYYY-MM-DD
     estado: "DISPONIBLE" | "OCUPADA" | "RESERVADA" | "MANTENIMIENTO";
+    idReserva?: string;
 }
 
 export interface HabitacionDisponibilidad {
@@ -21,26 +22,23 @@ export interface HabitacionDisponibilidad {
 interface GrillaProps {
     data: HabitacionDisponibilidad[];
     loading: boolean;
-    // Selección en curso (arrastrando)
     tempSelection: {
         start: string | null;
         end: string | null;
         roomId: string | null;
     };
-    // Selecciones ya confirmadas (en el carrito)
     finalSelections: {
         idHabitacion: string;
         fechaDesde: string;
         fechaHasta: string;
     }[];
-    onCellClick: (roomId: string, dateStr: string, estado: string, numero: number) => void;
 
-    // Modo visual para diferenciar colores
+    onCellClick: (roomId: string, dateStr: string, estado: string, numero: number, idReserva?: string) => void;
+
     modo: "reserva" | "checkin";
 }
 
-// --- UTILIDADES ---
-
+// --- UTILIDADES  ---
 const formatearFecha = (fechaStr: string) => {
     if (!fechaStr) return "-";
     const [year, month, day] = fechaStr.split('-').map(Number);
@@ -60,10 +58,8 @@ const isDatePast = (dateStr: string) => {
     return dateStr < getTodayString();
 };
 
-// --- Formatear Tipo de Habitación ---
 const formatearTipo = (tipoEnum: string) => {
     if (!tipoEnum) return "-";
-    // Ejemplo: DOBLE_ESTANDAR -> Doble Estándar
     return tipoEnum
         .toLowerCase()
         .split('_')
@@ -80,7 +76,6 @@ export function GrillaDisponibilidad({
                                          modo
                                      }: GrillaProps) {
 
-    // --- LÓGICA DE SELECCIÓN ---
     const isTempSelected = (roomId: string, dateStr: string) => {
         if (tempSelection.roomId && tempSelection.roomId !== roomId) return false;
         if (!tempSelection.start) return false;
@@ -99,7 +94,6 @@ export function GrillaDisponibilidad({
         );
     };
 
-    // --- RENDER ---
     if (loading) return <div className="p-12 text-center text-gray-500">Cargando disponibilidad...</div>;
     if (!data || data.length === 0) return <div className="p-12 text-center text-gray-500">No hay datos.</div>;
     if (!data[0]?.disponibilidad) return <div className="p-12 text-center text-red-500">Error: Datos de disponibilidad incompletos.</div>;
@@ -136,7 +130,6 @@ export function GrillaDisponibilidad({
                             <div className={`font-bold text-sm ${colorHabitacion}`}>
                                 Hab {row.habitacion.numero}
                             </div>
-
                             <div className="text-[10px] text-gray-400 font-normal">
                                 {formatearTipo(row.habitacion.tipoHabitacion)}
                             </div>
@@ -162,6 +155,8 @@ export function GrillaDisponibilidad({
                                 bg = "bg-red-50";
                                 txtColor = "text-red-300";
                                 content = "Ocu";
+                                // Si queremos permitir ver detalles de estadía, cambia a pointer
+                                //cursor = "cursor-pointer";
                             } else if (dia.estado === "MANTENIMIENTO") {
                                 bg = "bg-gray-100";
                                 txtColor = "text-gray-400";
@@ -193,7 +188,8 @@ export function GrillaDisponibilidad({
                             return (
                                 <td
                                     key={dia.fecha}
-                                    onClick={() => !pasado && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero)}
+                                    // AQUÍ PASAMOS EL dia.idReserva HACIA ARRIBA
+                                    onClick={() => !pasado && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero, dia.idReserva)}
                                     className={`p-1 border-b border-r h-10 transition-all duration-150 ${bg} ${txtColor} ${cursor} ${borderClass}`}
                                 >
                                     {content}
