@@ -25,7 +25,6 @@ interface BuscarHuespedProps {
     onGoToEdit: (huesped: HuespedDTO) => void;
 }
 
-// HANDLER DE VALIDACIÓN DE TEXTO PARA BÚSQUEDA
 const handleTextInput = (e: React.FormEvent<HTMLInputElement>) => {
     e.currentTarget.value = e.currentTarget.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
 };
@@ -37,7 +36,6 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
     const [searching, setSearching] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
-    // Estados para Alertas
     const [modalOpen, setModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
     const [modalTitle, setModalTitle] = useState('');
@@ -45,6 +43,8 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
 
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [huespedToDelete, setHuespedToDelete] = useState<string | null>(null);
+
+    const [suggestCreateOpen, setSuggestCreateOpen] = useState(false);
 
     const showAlert = (type: 'info' | 'success' | 'warning' | 'error', title: string, message: string) => {
         setModalType(type);
@@ -57,6 +57,8 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
         e.preventDefault();
         setSearching(true);
         setExpandedId(null);
+        setMensaje("");
+
         const form = e.currentTarget as HTMLFormElement;
         const data = new FormData(form);
         const tipoDocValue = String(data.get("tipoDocumento") ?? "");
@@ -74,7 +76,10 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
             const res = await api.buscar(payload);
             if (res.resultado.id === 0) {
                 setResultados(res.huespedesEncontrados);
-                setMensaje(res.huespedesEncontrados.length === 0 ? "No se encontraron resultados." : "");
+                if (res.huespedesEncontrados.length === 0) {
+                    setSuggestCreateOpen(true);
+                    setMensaje("No se encontraron resultados.");
+                }
             } else {
                 setResultados([]);
                 showAlert("error", "Error en búsqueda", res.resultado.mensaje);
@@ -136,21 +141,13 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
             <div className="p-6 space-y-6">
                 <form onSubmit={handleSearch} className="p-4 bg-rose-50/50 rounded-lg border border-rose-100 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-600">Nombre</label>
-                            {/* VALIDACIÓN DE BÚSQUEDA */}
-                            <Input name="nombre" placeholder="Ej: Juan" onInput={handleTextInput} className="bg-white" />
+                        <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600">Nombre</label><Input name="nombre" placeholder="Ej: Juan" onInput={handleTextInput} className="bg-white" /></div>
+                        <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600">Apellido</label><Input name="apellido" placeholder="Ej: Perez" onInput={handleTextInput} className="bg-white" /></div>
+                        <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600">Tipo Doc.</label><select name="tipoDocumento" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" defaultValue=""><option value="">Todos</option><option value="DNI">DNI</option><option value="Pasaporte">Pasaporte</option><option value="LE">LE</option><option value="LC">LC</option></select></div>
+                        <div className="flex gap-2">
+                            <div className="space-y-1.5 w-full"><label className="text-xs font-medium text-gray-600">Número</label><Input name="numDoc" placeholder="123..." className="bg-white" /></div>
+                            <Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white mb-0.5" disabled={searching}>{searching ? "..." : <SearchIcon className="h-4 w-4" />}</Button>
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-600">Apellido</label>
-                            {/* VALIDACIÓN DE BÚSQUEDA */}
-                            <Input name="apellido" placeholder="Ej: Perez" onInput={handleTextInput} className="bg-white" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-600">Tipo Doc.</label>
-                            <select name="tipoDocumento" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" defaultValue=""><option value="">Todos</option><option value="DNI">DNI</option><option value="Pasaporte">Pasaporte</option><option value="LE">LE</option><option value="LC">LC</option></select>
-                        </div>
-                        <div className="flex gap-2"><div className="space-y-1.5 w-full"><label className="text-xs font-medium text-gray-600">Número</label><Input name="numDoc" placeholder="123..." className="bg-white" /></div><Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white mb-0.5" disabled={searching}>{searching ? "..." : <SearchIcon className="h-4 w-4" />}</Button></div>
                     </div>
                 </form>
 
@@ -188,7 +185,6 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
                     ) : (
                         <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-200">{mensaje || "Ingrese filtros para buscar huéspedes"}</div>
                     )}
-
                     <div className="mt-8 pt-6 border-t border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-rose-50/30 p-4 rounded-lg">
                         <div className="text-sm text-gray-600 text-center sm:text-left"><p className="font-medium text-rose-950">¿No encuentra al huésped?</p><p>Puede registrar un nuevo huésped manualmente.</p></div>
                         <Button onClick={onGoToCreate} className="bg-white text-rose-900 border border-rose-200 hover:bg-rose-50 hover:border-rose-300 shadow-sm"><UserPlus className="h-4 w-4 mr-2" /> Dar Alta Nuevo Huésped</Button>
@@ -197,19 +193,16 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
             </div>
 
             <ModalAlert open={modalOpen} title={modalTitle} message={modalMessage} type={modalType} onOk={() => setModalOpen(false)} okText="Aceptar" />
-
             <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <AlertDialogContent className="bg-red-50 border-red-200">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-red-900">¿Eliminar Huésped?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-red-800">
-                            Esta acción eliminará al huésped permanentemente. Si tiene estadías asociadas, no se podrá eliminar.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => { setHuespedToDelete(null); setDeleteOpen(false); }} className="border-red-200 text-red-900 hover:bg-red-100">Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white border-red-700">Sí, eliminar</AlertDialogAction>
-                    </AlertDialogFooter>
+                    <AlertDialogHeader><AlertDialogTitle className="text-red-900">¿Eliminar Huésped?</AlertDialogTitle><AlertDialogDescription className="text-red-800">Esta acción eliminará al huésped permanentemente. Si tiene estadías asociadas, no se podrá eliminar.</AlertDialogDescription></AlertDialogHeader>
+                    <AlertDialogFooter><AlertDialogCancel onClick={() => { setHuespedToDelete(null); setDeleteOpen(false); }} className="border-red-200 text-red-900 hover:bg-red-100">Cancelar</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white border-red-700">Sí, eliminar</AlertDialogAction></AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog open={suggestCreateOpen} onOpenChange={setSuggestCreateOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader><AlertDialogTitle>Huésped no encontrado</AlertDialogTitle><AlertDialogDescription>No se encontraron resultados con los filtros ingresados. ¿Quiere ir a dar de alta un huésped?</AlertDialogDescription></AlertDialogHeader>
+                    <AlertDialogFooter><AlertDialogCancel onClick={() => setSuggestCreateOpen(false)}>No</AlertDialogCancel><AlertDialogAction onClick={() => { setSuggestCreateOpen(false); onGoToCreate(); }} className="bg-rose-900 hover:bg-rose-800">Sí, dar de alta</AlertDialogAction></AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>
