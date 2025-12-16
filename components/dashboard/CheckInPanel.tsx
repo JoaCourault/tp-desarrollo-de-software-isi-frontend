@@ -31,13 +31,15 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
+// IMPORTAMOS EL COMPONENTE DE ALERTAS PERSONALIZADO
+import ModalAlert from "@/components/modalAlert/modalAlert";
+
 import {
     GrillaDisponibilidad,
     type HabitacionDisponibilidad,
     type DisponibilidadDia
 } from "@/components/GrillaDisponibilidad";
 
-// Importamos la constante
 import { TIPOS_HABITACION } from "@/src/constants/tiposHabitacion";
 
 // --- TYPES LOCALES ---
@@ -47,6 +49,7 @@ interface Huesped {
     apellido: string;
     numDoc: string;
     tipoDocumento?: { tipoDocumento: string };
+    email?: string;
 }
 
 interface SeleccionCheckIn {
@@ -94,7 +97,7 @@ export default function CheckInPanel() {
     // ESTADOS GRILLA
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
-    const [tipoHabitacion, setTipoHabitacion] = useState(""); // NUEVO ESTADO
+    const [tipoHabitacion, setTipoHabitacion] = useState("");
 
     const [gridData, setGridData] = useState<HabitacionDisponibilidad[]>([]);
     const [searched, setSearched] = useState(false);
@@ -108,13 +111,18 @@ export default function CheckInPanel() {
     const [selecciones, setSelecciones] = useState<SeleccionCheckIn[]>([]);
     const [titularGlobal, setTitularGlobal] = useState<Huesped | null>(null);
 
-    // UI & MODALES
+    // UI & MODALES (Lógica)
     const [habitacionActivaIndex, setHabitacionActivaIndex] = useState<number>(0);
     const [modalConflicto, setModalConflicto] = useState(false);
     const [conflictDetails, setConflictDetails] = useState<DisponibilidadDia[]>([]);
     const [alertPendingOpen, setAlertPendingOpen] = useState(false);
 
-    // Modales Salida y Éxito
+    // MODALES NUEVOS (REEMPLAZO DE ALERTS)
+    const [modalAlert, setModalAlert] = useState<{ open: boolean; type: 'info'|'warning'|'error'|'success'; title: string; msg: string }>({
+        open: false, type: 'info', title: '', msg: ''
+    });
+
+    const [modalConfirmarVacias, setModalConfirmarVacias] = useState(false); // Para cuando hay habitaciones sin gente
     const [modalSalirOpen, setModalSalirOpen] = useState(false);
     const [modalExitoOpen, setModalExitoOpen] = useState(false);
 
@@ -122,6 +130,8 @@ export default function CheckInPanel() {
     const [searchApellido, setSearchApellido] = useState("");
     const [searchNombre, setSearchNombre] = useState("");
     const [searchDocumento, setSearchDocumento] = useState("");
+    const [searchTipoDoc, setSearchTipoDoc] = useState(""); // NUEVO FILTRO
+
     const [listaHuespedes, setListaHuespedes] = useState<Huesped[]>([]);
 
     // INIT
@@ -140,11 +150,16 @@ export default function CheckInPanel() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
+    // --- HELPER ALERTAS ---
+    const triggerAlert = (type: 'info'|'warning'|'error'|'success', title: string, msg: string) => {
+        setModalAlert({ open: true, type, title, msg });
+    };
+
     // --- LOGICA DE GRILLA ---
     const handleBuscarDisponibilidad = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (desde !== getTodayString()) {
-            alert("El Check-In debe realizarse con fecha de inicio HOY.");
+            triggerAlert("warning", "Fecha Incorrecta", "El Check-In debe realizarse con fecha de inicio HOY.");
             setDesde(getTodayString());
             return;
         }
@@ -157,7 +172,6 @@ export default function CheckInPanel() {
         setTempSelect({ start: null, end: null, roomId: null });
 
         try {
-            // PARAMETRO TIPO AGREGADO AQUI
             const res = await fetch(
                 `http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}&tipo=${tipoHabitacion}`
             );
@@ -166,6 +180,7 @@ export default function CheckInPanel() {
         } catch (error) {
             console.error(error);
             setGridData([]);
+            triggerAlert("error", "Error de Conexión", "No se pudo obtener la disponibilidad.");
         } finally {
             setLoading(false);
         }
@@ -173,7 +188,6 @@ export default function CheckInPanel() {
 
     const handleCellClick = (roomId: string, dateStr: string, estado: string) => {
         const todayStr = getTodayString();
-        // Si la habitación ya está ocupada (quizás acabamos de hacer check-in), no permite clic
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
         if (!tempSelect.start) {
@@ -211,7 +225,10 @@ export default function CheckInPanel() {
         });
 
         const tieneBloqueos = diasRango.some((d) => d.estado === "OCUPADA" || d.estado === "MANTENIMIENTO");
-        if (tieneBloqueos) { alert("El rango contiene días bloqueados."); return; }
+        if (tieneBloqueos) {
+            triggerAlert("warning", "Selección Inválida", "El rango seleccionado contiene días bloqueados.");
+            return;
+        }
 
         const tieneReservas = diasRango.some((d) => d.estado === "RESERVADA");
         const tieneDisponibles = diasRango.some((d) => d.estado === "DISPONIBLE");
@@ -278,25 +295,43 @@ export default function CheckInPanel() {
     const volverAGrilla = () => {
         setPaso("GRILLA");
         setTempSelect({ start: null, end: null, roomId: null });
-        // Si volvemos manualmente (botón "Agregar otra"), no forzamos recarga inmediata,
-        // confiamos en los datos actuales. Pero si venimos de un Success, lo forzaremos (ver abajo).
         if (!searched) realizarBusquedaGrilla();
     };
 
     // --- LÓGICA DE HUÉSPEDES ---
     const buscarHuesped = async () => {
         try {
+            // Preparamos payload con el NUEVO FILTRO DE TIPO DOC
+            const payload = {
+                huesped: {
+                    nombre: searchNombre || null,
+                    apellido: searchApellido || null,
+                    numDoc: searchDocumento || null,
+                    tipoDoc: searchTipoDoc ? { tipoDocumento: searchTipoDoc } : null
+                }
+            };
+
             const res = await fetch("http://localhost:8080/Huesped/Buscar", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    huesped: { nombre: searchNombre, apellido: searchApellido, numDoc: searchDocumento }
-                })
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
-            setListaHuespedes(data.huespedesEncontrados || []);
+
+            // ORDENAMIENTO ALFABÉTICO (A-Z Apellido)
+            const ordenados = (data.huespedesEncontrados || []).sort((a: Huesped, b: Huesped) =>
+                a.apellido.localeCompare(b.apellido, 'es', { sensitivity: 'base' })
+            );
+
+            setListaHuespedes(ordenados);
+
+            if (ordenados.length === 0) {
+                // Opcional: Avisar si no hay resultados, o dejarlo visual
+                // triggerAlert("info", "Sin Resultados", "No se encontraron huéspedes con esos criterios.");
+            }
+
         } catch (error) {
-            alert("Error al buscar huéspedes");
+            triggerAlert("error", "Error", "Ocurrió un error al buscar huéspedes.");
         }
     };
 
@@ -304,6 +339,7 @@ export default function CheckInPanel() {
         setSearchApellido("");
         setSearchNombre("");
         setSearchDocumento("");
+        setSearchTipoDoc(""); // Limpiar también el combo
         setListaHuespedes([]);
         document.getElementById("input-apellido")?.focus();
     };
@@ -317,7 +353,7 @@ export default function CheckInPanel() {
         );
 
         if (estaEnOtra) {
-            alert(`El huésped ${huesped.apellido} ya está asignado a otra habitación.`);
+            triggerAlert("warning", "Huésped Asignado", `El huésped ${huesped.apellido} ya está asignado a otra habitación.`);
             return;
         }
 
@@ -344,80 +380,85 @@ export default function CheckInPanel() {
     };
 
     // --- PROCESAMIENTO FINAL ---
-    const procesarCheckIn = async () => {
-            if (!titularGlobal) {
-                alert("Debe seleccionar un Titular responsable para el Check-In.");
-                return;
+
+    // Paso 1: Validación Previa
+    const iniciarProcesoGuardado = () => {
+        if (!titularGlobal) {
+            triggerAlert("warning", "Falta Titular", "Debe seleccionar un Titular responsable para el Check-In.");
+            return;
+        }
+
+        const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
+        if (habitacionesVacias.length > 0) {
+            // Abrimos modal de confirmación en lugar de window.confirm
+            setModalConfirmarVacias(true);
+        } else {
+            // Si todo ok, guardamos directo
+            ejecutarCheckInBackend();
+        }
+    };
+
+    // Paso 2: Llamada al Backend (separada para poder llamarla desde el modal o directo)
+    const ejecutarCheckInBackend = async () => {
+        setModalConfirmarVacias(false); // Cerramos el modal por si estaba abierto
+        setLoading(true);
+
+        // Aplanar lista de Habitaciones
+        const listaIdsHabitaciones = selecciones.map(sel => sel.idHabitacion);
+
+        // Aplanar lista de Huéspedes
+        const setHuespedes = new Set<string>();
+        setHuespedes.add(titularGlobal!.idHuesped);
+        selecciones.forEach(sel => {
+            if (sel.huespedes && sel.huespedes.length > 0) {
+                sel.huespedes.forEach(h => setHuespedes.add(h.idHuesped));
             }
+        });
+        const listaIdsHuespedes = Array.from(setHuespedes);
 
-            const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
-            if (habitacionesVacias.length > 0) {
-                if (!confirm(`Hay ${habitacionesVacias.length} habitaciones sin huéspedes asignados. ¿Desea continuar igual?`)) {
-                    return;
-                }
-            }
+        // Calcular noches
+        const fechaInicio = selecciones[0].fechaDesde;
+        const fechaFin = selecciones[0].fechaHasta;
+        const d1 = new Date(fechaInicio);
+        const d2 = new Date(fechaFin);
+        const diffTime = Math.abs(d2.getTime() - d1.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            setLoading(true);
-
-            // 1. Aplanar lista de Habitaciones (Solo IDs)
-            const listaIdsHabitaciones = selecciones.map(sel => sel.idHabitacion);
-
-            // 2. Aplanar lista de Huéspedes (Titular + Acompañantes, sin repetidos)
-            const setHuespedes = new Set<string>();
-            // Agregamos al titular
-            setHuespedes.add(titularGlobal.idHuesped);
-            // Agregamos a los acompañantes de todas las habitaciones
-            selecciones.forEach(sel => {
-                if (sel.huespedes && sel.huespedes.length > 0) {
-                    sel.huespedes.forEach(h => setHuespedes.add(h.idHuesped));
-                }
-            });
-            const listaIdsHuespedes = Array.from(setHuespedes);
-
-            // 3. Calcular cantidad de noches (basado en la primera selección)
-            // Asumimos que todas tienen las mismas fechas en este paso del flujo
-            const fechaInicio = selecciones[0].fechaDesde;
-            const fechaFin = selecciones[0].fechaHasta;
-            const d1 = new Date(fechaInicio);
-            const d2 = new Date(fechaFin);
-            const diffTime = Math.abs(d2.getTime() - d1.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            // 4. Armar el Payload exacto para CrearEstadiaRequestDTO.java
-            const payload = {
-                checkIn: fechaInicio,         // String "YYYY-MM-DD" viaja bien a LocalDate
-                checkOut: fechaFin,           // String "YYYY-MM-DD" viaja bien a LocalDate
-                cantNoches: diffDays,
-                idReserva: null,              // Por ahora null (Walk-in)
-                idsHabitaciones: listaIdsHabitaciones,
-                idsHuespedes: listaIdsHuespedes
-            };
-
-            try {
-                const res = await fetch("http://localhost:8080/Estadia/CheckIn", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-
-                if (res.ok) {
-                    setModalExitoOpen(true);
-                } else {
-                    const errorText = await res.text();
-                    try {
-                        const errorJson = JSON.parse(errorText);
-                        alert("Error: " + (errorJson.mensaje || errorText));
-                    } catch {
-                        alert("Error al procesar Check-In: " + errorText);
-                    }
-                }
-            } catch (error) {
-                console.error(error);
-                alert("Error de conexión con el servidor.");
-            } finally {
-                setLoading(false);
-            }
+        const payload = {
+            checkIn: fechaInicio,
+            checkOut: fechaFin,
+            cantNoches: diffDays,
+            idReserva: null, // Walk-in
+            idsHabitaciones: listaIdsHabitaciones,
+            idsHuespedes: listaIdsHuespedes, // Falta Coma arreglada en tu código previo
+            idHuespedTitular: titularGlobal!.idHuesped
         };
+
+        try {
+            const res = await fetch("http://localhost:8080/Estadia/CheckIn", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                setModalExitoOpen(true);
+            } else {
+                const errorText = await res.text();
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    triggerAlert("error", "Error Check-In", errorJson.mensaje || errorText);
+                } catch {
+                    triggerAlert("error", "Error Check-In", errorText);
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            triggerAlert("error", "Error de Sistema", "No se pudo conectar con el servidor.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // --- NUEVO FLUJO POST-EXITO ---
     const handleCargarOtra = () => {
@@ -434,6 +475,7 @@ export default function CheckInPanel() {
         window.location.reload();
     };
 
+    // ===================== RENDER =====================
     return (
         <div className="container mx-auto max-w-[1600px] p-4 sm:p-6 space-y-6 animate-in fade-in duration-500 pb-10 min-h-screen bg-gray-50/30">
 
@@ -665,13 +707,34 @@ export default function CheckInPanel() {
                                 </CardTitle>
                             </CardHeader>
                             <div className="px-6 pb-4">
-                                <div className="flex gap-2 mb-2">
-                                    <Input id="input-apellido" placeholder="Apellido" value={searchApellido} onChange={(e) => setSearchApellido(e.target.value.toUpperCase())} />
-                                    <Input placeholder="Nombre" value={searchNombre} onChange={(e) => setSearchNombre(e.target.value.toUpperCase())} />
-                                    <Input placeholder="DNI" value={searchDocumento} onChange={(e) => setSearchDocumento(e.target.value)} />
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button onClick={buscarHuesped} className="bg-blue-600 hover:bg-blue-700 text-white">BUSCAR</Button>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 items-end">
+                                    {/* --- CAMPOS DE BÚSQUEDA --- */}
+                                    <div>
+                                        <Input id="input-apellido" placeholder="Apellido" value={searchApellido} onChange={(e) => setSearchApellido(e.target.value.toUpperCase())} />
+                                    </div>
+                                    <div>
+                                        <Input placeholder="Nombre" value={searchNombre} onChange={(e) => setSearchNombre(e.target.value.toUpperCase())} />
+                                    </div>
+
+                                    {/* --- NUEVO FILTRO TIPO DOC --- */}
+                                    <div>
+                                        <select
+                                            className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                            value={searchTipoDoc}
+                                            onChange={(e) => setSearchTipoDoc(e.target.value)}
+                                        >
+                                            <option value="">Cualquier tipo doc</option>
+                                            <option value="DNI">DNI</option>
+                                            <option value="Pasaporte">Pasaporte</option>
+                                            <option value="LE">LE</option>
+                                            <option value="LC">LC</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <Input placeholder="Nro Doc" value={searchDocumento} onChange={(e) => setSearchDocumento(e.target.value)} className="w-full" />
+                                        <Button onClick={buscarHuesped} className="bg-blue-600 hover:bg-blue-700 text-white"><Search className="h-4 w-4" /></Button>
+                                    </div>
                                 </div>
                             </div>
                             <hr className="border-gray-100" />
@@ -684,7 +747,9 @@ export default function CheckInPanel() {
                                         <div key={h.idHuesped} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-center hover:shadow-md transition-all">
                                             <div>
                                                 <div className="font-bold text-gray-800">{h.apellido}, {h.nombre}</div>
-                                                <div className="text-xs text-gray-500">{h.numDoc}</div>
+                                                <div className="text-xs text-gray-500 flex gap-2">
+                                                    <span>{h.tipoDocumento?.tipoDocumento}: {h.numDoc}</span>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Button
@@ -731,7 +796,7 @@ export default function CheckInPanel() {
                                 <div className="flex gap-2">
                                     <Button
                                         className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
-                                        onClick={procesarCheckIn}
+                                        onClick={iniciarProcesoGuardado} // CAMBIADO: Inicia flujo con validación de modal
                                         disabled={loading || !titularGlobal}
                                     >
                                         <Save className="h-4 w-4 mr-2" />
@@ -751,9 +816,18 @@ export default function CheckInPanel() {
                 )}
             </div>
 
-            {/* MODALES */}
+            {/* --- MODALES --- */}
 
-            {/* 1. Modal de CONFLICTO */}
+            <ModalAlert
+                open={modalAlert.open}
+                type={modalAlert.type}
+                title={modalAlert.title}
+                message={modalAlert.msg}
+                onOk={() => setModalAlert(prev => ({...prev, open: false}))}
+                okText="Aceptar"
+            />
+
+            {/* 1. Modal de CONFLICTO (Grilla) */}
             <Dialog open={modalConflicto} onOpenChange={setModalConflicto}>
                 <DialogContent>
                     <DialogHeader><DialogTitle>Conflicto Reserva</DialogTitle><DialogDescription>Días reservados en la selección.</DialogDescription></DialogHeader>
@@ -793,7 +867,32 @@ export default function CheckInPanel() {
                 </DialogContent>
             </Dialog>
 
-            {/* 4. Modal de ÉXITO (NUEVO) */}
+            {/* 4. Modal de CONFIRMACIÓN DE HABITACIONES VACÍAS (Reemplaza window.confirm) */}
+            <Dialog open={modalConfirmarVacias} onOpenChange={setModalConfirmarVacias}>
+                <DialogContent className="border-amber-200 bg-amber-50">
+                    <DialogHeader>
+                        <DialogTitle className="text-amber-800 flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5" />
+                            Habitaciones sin Huéspedes
+                        </DialogTitle>
+                        <DialogDescription className="text-amber-700 pt-2">
+                            Hay habitaciones seleccionadas a las que no se les ha asignado ningún huésped acompañante.
+                            <br/><br/>
+                            ¿Desea continuar de todas formas?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setModalConfirmarVacias(false)} className="border-amber-200 text-amber-900 hover:bg-amber-100">
+                            Revisar
+                        </Button>
+                        <Button onClick={ejecutarCheckInBackend} className="bg-amber-600 hover:bg-amber-700 text-white">
+                            Sí, Continuar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* 5. Modal de ÉXITO */}
             <Dialog open={modalExitoOpen} onOpenChange={setModalExitoOpen}>
                 <DialogContent className="border-green-200 bg-green-50 sm:max-w-md">
                     <DialogHeader>

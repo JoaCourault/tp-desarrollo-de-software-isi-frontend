@@ -25,6 +25,10 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
+// IMPORTAMOS EL MODAL PERSONALIZADO
+import ModalAlert from "@/components/modalAlert/modalAlert";
+
+// Importamos el componente hijo y sus tipos
 import {
     GrillaDisponibilidad,
     type HabitacionDisponibilidad
@@ -71,10 +75,25 @@ export function RoomManagement() {
     // Lista de reservas
     const [selecciones, setSelecciones] = useState<Seleccion[]>([]);
 
-    // Modales
-    const [modalOpen, setModalOpen] = useState(false);
-    const [alertOpen, setAlertOpen] = useState(false);
+    // Modales de Flujo
+    const [modalOpen, setModalOpen] = useState(false); // Modal de carga de datos huesped
+    const [alertOpen, setAlertOpen] = useState(false); // Modal de selección pendiente
     const [guestData, setGuestData] = useState({ nombre: "", apellido: "", telefono: "" });
+
+    // --- NUEVO: MODAL DE ALERTAS GENÉRICAS ---
+    const [modalAlert, setModalAlert] = useState<{
+        open: boolean;
+        type: 'info'|'warning'|'error'|'success';
+        title: string;
+        msg: string
+    }>({
+        open: false, type: 'info', title: '', msg: ''
+    });
+
+    // Helper para disparar alertas
+    const triggerAlert = (type: 'info'|'warning'|'error'|'success', title: string, msg: string) => {
+        setModalAlert({ open: true, type, title, msg });
+    };
 
     // Formateo simple
     const formatearFecha = (fechaStr: string) => {
@@ -100,7 +119,7 @@ export function RoomManagement() {
         e.preventDefault();
 
         if (new Date(desde) > new Date(hasta)) {
-            alert("La fecha 'Desde' no puede ser mayor a 'Hasta'");
+            triggerAlert("warning", "Fechas Incorrectas", "La fecha 'Desde' no puede ser mayor a 'Hasta'.");
             return;
         }
 
@@ -118,6 +137,7 @@ export function RoomManagement() {
         } catch (e) {
             setGridData([]);
             setSearched(true);
+            triggerAlert("error", "Error de Conexión", "No se pudo obtener la disponibilidad. Verifique el servidor.");
         } finally {
             setLoading(false);
         }
@@ -128,7 +148,7 @@ export function RoomManagement() {
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
         if (estado === "RESERVADA") {
-            alert(`La habitación ${numero} ya está reservada el día ${formatearFecha(dateStr)}.`);
+            triggerAlert("info", "Habitación Reservada", `La habitación ${numero} ya está reservada el día ${formatearFecha(dateStr)}.`);
             return;
         }
 
@@ -157,7 +177,7 @@ export function RoomManagement() {
                 });
 
                 if (diaConflicto) {
-                    alert(`Rango inválido (contiene días ocupados o pasados).`);
+                    triggerAlert("warning", "Selección Inválida", `El rango seleccionado contiene días ocupados o pasados.`);
                     setTempSelect({ start: null, end: null, roomId: null });
                     return;
                 }
@@ -215,20 +235,20 @@ export function RoomManagement() {
         const telefonoRegex = /^[0-9]+$/;
 
         if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
-            alert("Complete todos los campos del huésped");
+            triggerAlert("warning", "Campos Incompletos", "Por favor complete todos los campos del huésped titular.");
             return;
         }
 
         if (!nombreRegex.test(guestData.nombre)) {
-            alert("El nombre solo puede contener letras y espacios.");
+            triggerAlert("warning", "Nombre Inválido", "El nombre solo puede contener letras y espacios.");
             return;
         }
         if (!nombreRegex.test(guestData.apellido)) {
-            alert("El apellido solo puede contener letras y espacios.");
+            triggerAlert("warning", "Apellido Inválido", "El apellido solo puede contener letras y espacios.");
             return;
         }
         if (!telefonoRegex.test(guestData.telefono)) {
-            alert("El teléfono solo puede contener números.");
+            triggerAlert("warning", "Teléfono Inválido", "El teléfono solo puede contener números.");
             return;
         }
         // -----------------------------
@@ -250,23 +270,34 @@ export function RoomManagement() {
             const data = await crearReserva(payload);
 
             if (data && (data.id === 0 || data.idReserva)) {
-                alert("¡Reserva creada exitosamente!");
-                setSelecciones([]);
+                // ÉXITO: Cerramos el modal de datos y mostramos el success
                 setModalOpen(false);
-                setGuestData({ nombre: "", apellido: "", telefono: "" });
-                handleBuscar({ preventDefault: () => {} } as React.FormEvent);
+                triggerAlert("success", "Reserva Creada", "¡La reserva ha sido registrada exitosamente!");
+                // La limpieza se hace en 'handleAlertOk'
             } else {
-                alert("Error: " + (data.mensaje || "Respuesta desconocida"));
+                triggerAlert("error", "Error al Reservar", (data.mensaje || "Respuesta desconocida del servidor."));
             }
 
         } catch (error: any) {
             console.error(error);
-            alert("Ocurrió un error: " + error.message);
+            triggerAlert("error", "Error de Sistema", "Ocurrió un error inesperado: " + error.message);
         } finally {
             setLoading(false);
         }
     };
 
+    // Callback al cerrar el modal de alerta
+    const handleAlertOk = () => {
+        setModalAlert(prev => ({ ...prev, open: false }));
+        // Si fue un éxito, limpiamos todo y recargamos
+        if (modalAlert.type === 'success') {
+            setSelecciones([]);
+            setGuestData({ nombre: "", apellido: "", telefono: "" });
+            handleBuscar({ preventDefault: () => {} } as React.FormEvent);
+        }
+    };
+
+    // --- RENDER ---
     return (
         <div className="container mx-auto max-w-7xl p-4 sm:p-6 space-y-8 animate-in fade-in duration-500 pb-10 min-h-screen">
 
@@ -431,6 +462,19 @@ export function RoomManagement() {
                 </div>
             )}
 
+            {/* --- MODALES --- */}
+
+            {/* 1. Modal Alerta Genérico (Success, Error, Warning) */}
+            <ModalAlert
+                open={modalAlert.open}
+                type={modalAlert.type}
+                title={modalAlert.title}
+                message={modalAlert.msg}
+                onOk={handleAlertOk}
+                okText="Aceptar"
+            />
+
+            {/* 2. Modal Selección Pendiente */}
             <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
                 <DialogContent className="sm:max-w-md border-amber-200 bg-amber-50">
                     <DialogHeader>
@@ -458,6 +502,7 @@ export function RoomManagement() {
                 </DialogContent>
             </Dialog>
 
+            {/* 3. Modal Carga Datos Huésped */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="sm:max-w-md border-rose-100">
                     <DialogHeader>
