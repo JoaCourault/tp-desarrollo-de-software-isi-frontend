@@ -41,8 +41,20 @@ interface ReservaListadoDTO {
 // --- UTILIDADES ---
 const formatearFecha = (fechaStr: string) => {
     if (!fechaStr) return "-";
-    const [year, month, day] = fechaStr.split('-');
-    return `${day}/${month}/${year}`;
+
+    // Intentamos extraer día, mes y año usando regex para mayor seguridad
+    // Busca grupos de dígitos en la cadena (ej: 16, 12, 2025)
+    const match = fechaStr.match(/(\d{1,2}).*?(\d{1,2}).*?(\d{4})/);
+
+    if (match) {
+        const [, dia, mes, año] = match;
+        const d = dia.padStart(2, '0');
+        const m = mes.padStart(2, '0');
+        return `${d}/${m}/${año}`;
+    }
+
+    // Si el regex falla, intentamos el split básico por si el formato cambia
+    return fechaStr.split('T')[0].split('-').reverse().join('/');
 };
 
 export default function CancelReservationPanel() {
