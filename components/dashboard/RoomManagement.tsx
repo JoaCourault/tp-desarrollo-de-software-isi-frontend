@@ -53,6 +53,15 @@ const isDatePast = (dateStr: string) => {
     return checkDate < today;
 };
 
+// NUEVO HELPER: Obtener el día siguiente a una fecha dada
+const getNextDay = (dateStr: string) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr + "T00:00:00");
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().split('T')[0];
+};
+
+
 // --- COMPONENTE PRINCIPAL ---
 export function RoomManagement() {
 
@@ -80,7 +89,7 @@ export function RoomManagement() {
     const [alertOpen, setAlertOpen] = useState(false); // Modal de selección pendiente
     const [guestData, setGuestData] = useState({ nombre: "", apellido: "", telefono: "" });
 
-    // --- NUEVO: MODAL DE ALERTAS GENÉRICAS ---
+    // --- MODAL DE ALERTAS GENÉRICAS ---
     const [modalAlert, setModalAlert] = useState<{
         open: boolean;
         type: 'info'|'warning'|'error'|'success';
@@ -90,19 +99,16 @@ export function RoomManagement() {
         open: false, type: 'info', title: '', msg: ''
     });
 
-    // Helper para disparar alertas
     const triggerAlert = (type: 'info'|'warning'|'error'|'success', title: string, msg: string) => {
         setModalAlert({ open: true, type, title, msg });
     };
 
-    // Formateo simple
     const formatearFecha = (fechaStr: string) => {
         if (!fechaStr) return "-";
         const date = new Date(fechaStr + "T00:00:00");
         return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit" }).format(date);
     };
 
-    // --- LISTENER ESCAPE ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
@@ -118,8 +124,10 @@ export function RoomManagement() {
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (new Date(desde) > new Date(hasta)) {
-            triggerAlert("warning", "Fechas Incorrectas", "La fecha 'Desde' no puede ser mayor a 'Hasta'.");
+        // VALIDACIÓN DE RANGO EN EL FRONT (Mínimo 1 noche)
+        // Usamos >= porque "desde" no puede ser igual a "hasta"
+        if (new Date(desde) >= new Date(hasta)) {
+            triggerAlert("warning", "Fechas Incorrectas", "La fecha 'Hasta' debe ser posterior a 'Desde' (Mínimo 1 noche).");
             return;
         }
 
@@ -230,7 +238,6 @@ export function RoomManagement() {
     };
 
     const handleConfirmarReserva = async () => {
-        // --- VALIDACIONES DE REGEX ---
         const nombreRegex = /^[a-zA-Z\s]+$/;
         const telefonoRegex = /^[0-9]+$/;
 
@@ -251,7 +258,6 @@ export function RoomManagement() {
             triggerAlert("warning", "Teléfono Inválido", "El teléfono solo puede contener números.");
             return;
         }
-        // -----------------------------
 
         const payload = {
             nombreCliente: guestData.nombre,
@@ -270,10 +276,8 @@ export function RoomManagement() {
             const data = await crearReserva(payload);
 
             if (data && (data.id === 0 || data.idReserva)) {
-                // ÉXITO: Cerramos el modal de datos y mostramos el success
                 setModalOpen(false);
                 triggerAlert("success", "Reserva Creada", "¡La reserva ha sido registrada exitosamente!");
-                // La limpieza se hace en 'handleAlertOk'
             } else {
                 triggerAlert("error", "Error al Reservar", (data.mensaje || "Respuesta desconocida del servidor."));
             }
@@ -286,10 +290,8 @@ export function RoomManagement() {
         }
     };
 
-    // Callback al cerrar el modal de alerta
     const handleAlertOk = () => {
         setModalAlert(prev => ({ ...prev, open: false }));
-        // Si fue un éxito, limpiamos todo y recargamos
         if (modalAlert.type === 'success') {
             setSelecciones([]);
             setGuestData({ nombre: "", apellido: "", telefono: "" });
@@ -317,11 +319,23 @@ export function RoomManagement() {
                     <form onSubmit={handleBuscar} className="flex flex-col sm:flex-row gap-4 items-end">
                         <div className="w-full sm:w-1/4">
                             <label className="text-sm font-medium text-gray-700">Desde</label>
-                            <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} required />
+                            <Input
+                                type="date"
+                                value={desde}
+                                onChange={e => setDesde(e.target.value)}
+                                required
+                            />
                         </div>
                         <div className="w-full sm:w-1/4">
                             <label className="text-sm font-medium text-gray-700">Hasta</label>
-                            <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} required />
+                            {/* AQUÍ ESTÁ EL BLOQUEO VISUAL */}
+                            <Input
+                                type="date"
+                                value={hasta}
+                                min={desde ? getNextDay(desde) : undefined}
+                                onChange={e => setHasta(e.target.value)}
+                                required
+                            />
                         </div>
 
                         <div className="w-full sm:w-1/4">
