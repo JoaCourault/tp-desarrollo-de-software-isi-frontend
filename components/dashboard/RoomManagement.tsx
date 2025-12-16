@@ -12,7 +12,7 @@ import {
     CalendarDays,
     AlertTriangle
 } from "lucide-react";
-
+import { crearReserva } from "@/src/api/reserva.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -25,16 +25,15 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-// Importamos el componente hijo y sus tipos
-// (Asegúrate de que la ruta sea correcta según donde guardaste el archivo anterior)
 import {
     GrillaDisponibilidad,
-    type HabitacionDisponibilidad,
-    type DisponibilidadDia
+    type HabitacionDisponibilidad
 } from "@/components/GrillaDisponibilidad";
 
-// --- TIPOS LOCALES (Solo los que no vienen de la Grilla) ---
+// Importamos la constante compartida
+import { TIPOS_HABITACION } from "@/src/constants/tiposHabitacion";
 
+// --- TIPOS LOCALES ---
 interface Seleccion {
     idHabitacion: string;
     fechaDesde: string;
@@ -43,9 +42,6 @@ interface Seleccion {
 }
 
 // --- UTILIDADES ---
-
-// Mantenemos esta utilidad aquí porque la lógica de negocio (handleCellClick) la usa
-// antes de pasar datos al hijo.
 const isDatePast = (dateStr: string) => {
     const checkDate = new Date(dateStr + "T00:00:00");
     const today = new Date();
@@ -54,19 +50,18 @@ const isDatePast = (dateStr: string) => {
 };
 
 // --- COMPONENTE PRINCIPAL ---
-
 export function RoomManagement() {
 
     // Estados de búsqueda
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
-    const [loading, setLoading] = useState(false);
+    const [tipoHabitacion, setTipoHabitacion] = useState("");
 
-    // Ahora tipamos esto con la interfaz importada
+    const [loading, setLoading] = useState(false);
     const [gridData, setGridData] = useState<HabitacionDisponibilidad[]>([]);
     const [searched, setSearched] = useState(false);
 
-    // Selección temporal (coincide con la prop tempSelection del hijo)
+    // Selección temporal
     const [tempSelect, setTempSelect] = useState<{
         start: string | null,
         end: string | null,
@@ -81,7 +76,7 @@ export function RoomManagement() {
     const [alertOpen, setAlertOpen] = useState(false);
     const [guestData, setGuestData] = useState({ nombre: "", apellido: "", telefono: "" });
 
-    // Formateo simple para la UI lateral
+    // Formateo simple
     const formatearFecha = (fechaStr: string) => {
         if (!fechaStr) return "-";
         const date = new Date(fechaStr + "T00:00:00");
@@ -114,7 +109,8 @@ export function RoomManagement() {
         setSearched(false);
 
         try {
-            const res = await fetch(`http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}`);
+            const url = `http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}&tipo=${tipoHabitacion}`;
+            const res = await fetch(url);
             if (!res.ok) throw new Error("Error API");
             const data: HabitacionDisponibilidad[] = await res.json();
             setGridData(data);
@@ -127,10 +123,8 @@ export function RoomManagement() {
         }
     };
 
-    // Esta función se pasa como prop al hijo
     const handleCellClick = (roomId: string, dateStr: string, estado: string, numero: number) => {
-        // Validación de negocio
-        if (isDatePast(dateStr)) return; // Bloqueo extra por seguridad
+        if (isDatePast(dateStr)) return;
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
         if (estado === "RESERVADA") {
@@ -138,7 +132,6 @@ export function RoomManagement() {
             return;
         }
 
-        // Lógica de selección de rango (igual que antes)
         if (!tempSelect.start) {
             setTempSelect({ start: dateStr, end: null, roomId });
         } else if (tempSelect.start && !tempSelect.end) {
@@ -155,7 +148,6 @@ export function RoomManagement() {
                 to = start;
             }
 
-            // Validar que no haya conflictos en medio del rango
             const habitacionActual = gridData.find(h => h.habitacion.id_habitacion === roomId);
             if (habitacionActual) {
                 const diaConflicto = habitacionActual.disponibilidad.find(dia => {
@@ -172,7 +164,6 @@ export function RoomManagement() {
             }
             setTempSelect({ start: from, end: to, roomId });
         } else {
-            // Reiniciar selección si ya había un rango completo
             setTempSelect({ start: dateStr, end: null, roomId });
         }
     };
@@ -219,69 +210,63 @@ export function RoomManagement() {
     };
 
     const handleConfirmarReserva = async () => {
-            // 1. Validaciones de formulario
-            if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
-                alert("Complete todos los campos del huésped");
-                return;
-            }
+        // --- VALIDACIONES DE REGEX ---
+        const nombreRegex = /^[a-zA-Z\s]+$/;
+        const telefonoRegex = /^[0-9]+$/;
 
-            // 2. Armar el Payload para el Backend
-            // Basado en tu ReservaService.java y CrearReservaRequestDTO
-            const payload = {
-                nombreCliente: guestData.nombre,
-                apellidoCliente: guestData.apellido,
-                telefonoCliente: guestData.telefono,
-                reservas: selecciones.map((sel) => ({
-                    idHabitacion: sel.idHabitacion, // Aseguramos que sea número
-                    fechaDesde: sel.fechaDesde,             // Formato YYYY-MM-DD
-                    fechaHasta: sel.fechaHasta              // Formato YYYY-MM-DD
-                }))
-            };
+        if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
+            alert("Complete todos los campos del huésped");
+            return;
+        }
 
-            setLoading(true); // Reusamos el estado loading para bloquear botones
+        if (!nombreRegex.test(guestData.nombre)) {
+            alert("El nombre solo puede contener letras y espacios.");
+            return;
+        }
+        if (!nombreRegex.test(guestData.apellido)) {
+            alert("El apellido solo puede contener letras y espacios.");
+            return;
+        }
+        if (!telefonoRegex.test(guestData.telefono)) {
+            alert("El teléfono solo puede contener números.");
+            return;
+        }
+        // -----------------------------
 
-            try {
-                // 3. Llamada a la API
-                const res = await fetch("http://localhost:8080/Reserva/Crear", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                // 4. Manejo de Respuesta
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(errorText || "Error de conexión con el servidor");
-                }
-
-                const data = await res.json();
-
-                // Asumimos que tu Resultado tiene { id: 0, mensaje: "..." } para éxito
-                if (data.id === 0) {
-                    alert("¡Reserva creada exitosamente!");
-
-                    // Limpieza de estado (Solo si fue exitoso)
-                    setSelecciones([]);
-                    setModalOpen(false);
-                    setGuestData({ nombre: "", apellido: "", telefono: "" });
-
-                    // Opcional: Recargar la grilla para ver lo nuevo pintado de rojo
-                    handleBuscar({ preventDefault: () => {} } as React.FormEvent);
-                } else {
-                    alert("Error al crear reserva: " + data.mensaje);
-                }
-
-            } catch (error: any) {
-                console.error(error);
-                alert("Ocurrió un error: " + error.message);
-            } finally {
-                setLoading(false);
-            }
+        const payload = {
+            nombreCliente: guestData.nombre,
+            apellidoCliente: guestData.apellido,
+            telefonoCliente: guestData.telefono,
+            reservas: selecciones.map((sel) => ({
+                idHabitacion: sel.idHabitacion,
+                fechaDesde: sel.fechaDesde,
+                fechaHasta: sel.fechaHasta
+            }))
         };
 
-    // --- RENDER ---
+        setLoading(true);
+
+        try {
+            const data = await crearReserva(payload);
+
+            if (data && (data.id === 0 || data.idReserva)) {
+                alert("¡Reserva creada exitosamente!");
+                setSelecciones([]);
+                setModalOpen(false);
+                setGuestData({ nombre: "", apellido: "", telefono: "" });
+                handleBuscar({ preventDefault: () => {} } as React.FormEvent);
+            } else {
+                alert("Error: " + (data.mensaje || "Respuesta desconocida"));
+            }
+
+        } catch (error: any) {
+            console.error(error);
+            alert("Ocurrió un error: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="container mx-auto max-w-7xl p-4 sm:p-6 space-y-8 animate-in fade-in duration-500 pb-10 min-h-screen">
 
@@ -307,6 +292,21 @@ export function RoomManagement() {
                             <label className="text-sm font-medium text-gray-700">Hasta</label>
                             <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} required />
                         </div>
+
+                        <div className="w-full sm:w-1/4">
+                            <label className="text-sm font-medium text-gray-700">Tipo</label>
+                            <select
+                                className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                value={tipoHabitacion}
+                                onChange={e => setTipoHabitacion(e.target.value)}
+                            >
+                                <option value="">Todas</option>
+                                {TIPOS_HABITACION.map(t => (
+                                    <option key={t.value} value={t.value}>{t.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
                         <Button className="bg-rose-900 text-white hover:bg-rose-800 w-full sm:w-auto" disabled={loading}>
                             <Search className="h-4 w-4 mr-2" />
                             {loading ? "Buscando..." : "Buscar Disponibilidad"}
@@ -319,7 +319,7 @@ export function RoomManagement() {
             {searched && (
                 <div className="flex flex-col lg:flex-row gap-6 items-start animate-in slide-in-from-bottom-4 duration-500">
 
-                    {/* ZONA DE LA GRILLA (REFACTORIZADA) */}
+                    {/* ZONA DE LA GRILLA */}
                     <div className="w-full lg:flex-1 min-w-0">
                         <Card className="border-rose-100 shadow-sm overflow-hidden">
                             <div className="p-4 border-b border-rose-100 bg-rose-50/30 flex justify-between items-center">
@@ -331,19 +331,18 @@ export function RoomManagement() {
                                 </span>
                             </div>
 
-                            {/* Aquí inyectamos el componente reutilizable */}
                             <GrillaDisponibilidad
                                 data={gridData}
                                 loading={loading}
                                 tempSelection={tempSelect}
                                 finalSelections={selecciones}
                                 onCellClick={handleCellClick}
-                                modo="reserva" // Usamos el color rojo/rose definido en la grilla para este modo
+                                modo="reserva"
                             />
                         </Card>
                     </div>
 
-                    {/* PANELES LATERALES (Sin cambios mayores) */}
+                    {/* PANELES LATERALES */}
                     <aside className="w-full lg:w-80 shrink-0 space-y-4 sticky top-6 animate-in slide-in-from-right duration-500">
 
                         {/* Panel de Selección Actual */}
@@ -432,7 +431,6 @@ export function RoomManagement() {
                 </div>
             )}
 
-            {/* MODAL DE ALERTA (Selección pendiente) */}
             <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
                 <DialogContent className="sm:max-w-md border-amber-200 bg-amber-50">
                     <DialogHeader>
@@ -460,7 +458,6 @@ export function RoomManagement() {
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL DE FINALIZAR RESERVA */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="sm:max-w-md border-rose-100">
                     <DialogHeader>

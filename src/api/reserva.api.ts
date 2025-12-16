@@ -51,3 +51,18 @@ export async function reservasDelDia() {
     const res = await fetch(`${BASE}/ReservasDelDia`);
     return await res.json();
 }
+export async function crearReserva(payload: any) {
+    const res = await fetch(`${BASE}/Crear`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+        // Intentamos leer el mensaje de error del backend
+        const errorText = await res.text();
+        throw new Error(errorText || "Error al crear la reserva");
+    }
+
+    return await res.json();
+}

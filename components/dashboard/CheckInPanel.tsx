@@ -37,6 +37,9 @@ import {
     type DisponibilidadDia
 } from "@/components/GrillaDisponibilidad";
 
+// Importamos la constante
+import { TIPOS_HABITACION } from "@/src/constants/tiposHabitacion";
+
 // --- TYPES LOCALES ---
 interface Huesped {
     idHuesped: string;
@@ -91,6 +94,8 @@ export default function CheckInPanel() {
     // ESTADOS GRILLA
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
+    const [tipoHabitacion, setTipoHabitacion] = useState(""); // NUEVO ESTADO
+
     const [gridData, setGridData] = useState<HabitacionDisponibilidad[]>([]);
     const [searched, setSearched] = useState(false);
     const [tempSelect, setTempSelect] = useState<{
@@ -111,7 +116,7 @@ export default function CheckInPanel() {
 
     // Modales Salida y Éxito
     const [modalSalirOpen, setModalSalirOpen] = useState(false);
-    const [modalExitoOpen, setModalExitoOpen] = useState(false); // NUEVO
+    const [modalExitoOpen, setModalExitoOpen] = useState(false);
 
     // BÚSQUEDA HUESPEDES
     const [searchApellido, setSearchApellido] = useState("");
@@ -152,8 +157,9 @@ export default function CheckInPanel() {
         setTempSelect({ start: null, end: null, roomId: null });
 
         try {
+            // PARAMETRO TIPO AGREGADO AQUI
             const res = await fetch(
-                `http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}`
+                `http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}&tipo=${tipoHabitacion}`
             );
             const data = await res.json();
             setGridData(data);
@@ -398,7 +404,6 @@ export default function CheckInPanel() {
                     setModalExitoOpen(true);
                 } else {
                     const errorText = await res.text();
-                    // Intentamos parsear si viene como JSON de error
                     try {
                         const errorJson = JSON.parse(errorText);
                         alert("Error: " + (errorJson.mensaje || errorText));
@@ -416,26 +421,19 @@ export default function CheckInPanel() {
 
     // --- NUEVO FLUJO POST-EXITO ---
     const handleCargarOtra = () => {
-        // 1. Limpiar datos de sesión actual
         setSelecciones([]);
         setTitularGlobal(null);
         setListaHuespedes([]);
         setTempSelect({ start: null, end: null, roomId: null });
         setModalExitoOpen(false);
-
-        // 2. Volver a la grilla
         setPaso("GRILLA");
-
-        // 3. RECARGAR DATOS DEL BACKEND (Importante para ver lo ocupado en rojo)
         realizarBusquedaGrilla();
     };
 
     const handleFinalizarSalir = () => {
-        // Recargar la página completa para limpiar todo
         window.location.reload();
     };
 
-    // ===================== RENDER =====================
     return (
         <div className="container mx-auto max-w-[1600px] p-4 sm:p-6 space-y-6 animate-in fade-in duration-500 pb-10 min-h-screen bg-gray-50/30">
 
@@ -460,6 +458,21 @@ export default function CheckInPanel() {
 
                     {paso === "GRILLA" && (
                         <form onSubmit={handleBuscarDisponibilidad} className="flex gap-4 items-end mr-12 sm:mr-32 lg:mr-0">
+
+                            <div className="w-32">
+                                <label className="text-xs font-semibold text-gray-500">Tipo</label>
+                                <select
+                                    className="h-9 w-full rounded-md border border-input bg-gray-100 px-3 py-1 text-sm focus:bg-white"
+                                    value={tipoHabitacion}
+                                    onChange={e => setTipoHabitacion(e.target.value)}
+                                >
+                                    <option value="">Todas</option>
+                                    {TIPOS_HABITACION.map(t => (
+                                        <option key={t.value} value={t.value}>{t.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div className="w-28 sm:w-32">
                                 <label className="text-xs font-semibold text-gray-500">Entrada</label>
                                 <Input value={getTodayString()} disabled className="h-9 bg-gray-100 text-center" />
