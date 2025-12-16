@@ -24,7 +24,7 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-// IMPORTAMOS TU COMPONENTE DE ALERTA (Asegúrate que la ruta sea correcta)
+// IMPORTANTE: Ajusta la ruta si tu ModalAlert está en otra carpeta
 import ModalAlert from "@/components/modalAlert/modalAlert";
 
 // --- TIPOS ---
@@ -72,7 +72,7 @@ export default function CancelReservationPanel() {
     const [modalConfirmOpen, setModalConfirmOpen] = useState(false);
     const [modalExitoOpen, setModalExitoOpen] = useState(false);
 
-    // Estado para Alertas Genéricas (Error, Warning, Info)
+    // --- ESTADO PARA ALERTAS GENÉRICAS (Reemplazo de window.alert) ---
     const [modalAlert, setModalAlert] = useState<{ open: boolean; type: 'info'|'warning'|'error'|'success'; title: string; msg: string }>({
         open: false, type: 'info', title: '', msg: ''
     });
@@ -107,7 +107,7 @@ export default function CancelReservationPanel() {
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
                 if (res.status === 404) {
-                    setReservas([]); // Simplemente no hay resultados
+                    setReservas([]); // No hay resultados, array vacío
                 } else {
                     triggerAlert("error", "Error de Búsqueda", errorData.mensaje || "Ocurrió un error al buscar reservas.");
                 }
@@ -117,7 +117,7 @@ export default function CancelReservationPanel() {
             }
         } catch (error) {
             console.error(error);
-            triggerAlert("error", "Error de Conexión", "No se pudo conectar con el servidor. Verifique su conexión.");
+            triggerAlert("error", "Error de Conexión", "No se pudo conectar con el servidor. Verifique que el backend esté corriendo.");
             setReservas([]);
         } finally {
             setLoading(false);
@@ -155,15 +155,14 @@ export default function CancelReservationPanel() {
 
             if (res.ok) {
                 setModalConfirmOpen(false);
-                setModalExitoOpen(true); // Abrimos modal de éxito
+                setModalExitoOpen(true); // Éxito
 
-                // Limpiamos visualmente
+                // Actualizamos la lista eliminando las canceladas
                 const remanentes = reservas.filter(r => !selectedIds.includes(r.idReserva));
                 setReservas(remanentes);
                 setSelectedIds([]);
             } else {
                 const errorData = await res.json();
-                // Cerramos el de confirmación para mostrar el error
                 setModalConfirmOpen(false);
                 triggerAlert("error", "Error al Cancelar", errorData.mensaje || "No se pudieron cancelar las reservas.");
             }
@@ -178,27 +177,26 @@ export default function CancelReservationPanel() {
 
     // --- RENDER ---
     return (
-        // RESPONSIVE: 'p-4 sm:p-6' ajusta el padding según pantalla. 'max-w-6xl' evita que se estire demasiado en monitores grandes.
-        <div className="container mx-auto max-w-6xl p-4 sm:p-6 space-y-6 animate-in fade-in duration-500 pb-10 min-h-screen bg-gray-50/30">
+        <div className="container mx-auto max-w-7xl p-8 space-y-6 min-h-screen bg-gray-50/30">
 
             {/* HEADER */}
             <Card className="bg-white border-red-100 shadow-sm">
-                <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-red-100 text-red-800 shrink-0">
-                            <XCircle className="h-6 w-6" />
+                <CardContent className="p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-xl bg-red-50 text-red-900 border border-red-100">
+                            <XCircle className="h-8 w-8" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900">Cancelar Reservas</h2>
-                            <p className="text-sm text-gray-500">
-                                Libere habitaciones buscando por el titular.
+                            <h2 className="text-2xl font-bold text-gray-900">Cancelar Reservas</h2>
+                            <p className="text-gray-500">
+                                Busque por apellido del huésped para liberar las habitaciones.
                             </p>
                         </div>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* FORMULARIO */}
+            {/* FORMULARIO DE BÚSQUEDA */}
             <Card className="border-gray-200 shadow-sm">
                 <CardHeader className="pb-4 bg-gray-50/50 border-b border-gray-100 px-6 py-4">
                     <CardTitle className="text-base font-semibold text-gray-700 flex items-center gap-2">
@@ -206,52 +204,58 @@ export default function CancelReservationPanel() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                    {/* RESPONSIVE: flex-col en móvil, md:flex-row en notebook/desktop */}
-                    <form onSubmit={handleBuscar} className="flex flex-col md:flex-row gap-4 items-end">
-                        <div className="w-full md:w-1/3">
-                            <label className="text-xs font-semibold text-gray-500 mb-1 block">Apellido *</label>
+                    {/* Diseño optimizado para Desktop (Grid horizontal) */}
+                    <form onSubmit={handleBuscar} className="flex flex-row gap-6 items-end">
+                        <div className="w-1/3">
+                            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Apellido del Titular *</label>
                             <Input
                                 value={apellido}
                                 onChange={(e) => setApellido(e.target.value)}
                                 placeholder="Ej: GOMEZ"
-                                className="bg-white"
+                                className="bg-white h-10"
+                                autoFocus
                             />
                         </div>
-                        <div className="w-full md:w-1/3">
-                            <label className="text-xs font-semibold text-gray-500 mb-1 block">Nombre (Opcional)</label>
+                        <div className="w-1/3">
+                            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Nombre (Opcional)</label>
                             <Input
                                 value={nombre}
                                 onChange={(e) => setNombre(e.target.value)}
                                 placeholder="Ej: JUAN"
-                                className="bg-white"
+                                className="bg-white h-10"
                             />
                         </div>
-                        <Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white w-full md:w-auto min-w-[120px]" disabled={loading}>
-                            {loading ? <RefreshCcw className="h-4 w-4 animate-spin mr-2"/> : <Search className="h-4 w-4 mr-2" />}
-                            Buscar
-                        </Button>
+                        <div className="w-auto">
+                            <Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white h-10 px-8 min-w-[140px]" disabled={loading}>
+                                {loading ? <RefreshCcw className="h-4 w-4 animate-spin mr-2"/> : <Search className="h-4 w-4 mr-2" />}
+                                Buscar
+                            </Button>
+                        </div>
                     </form>
                 </CardContent>
             </Card>
 
             {/* RESULTADOS */}
             {searched && (
-                <div className="space-y-4 animate-in slide-in-from-bottom-2">
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     {reservas.length === 0 ? (
-                        <div className="text-center p-12 bg-white rounded-lg border border-dashed border-gray-300 text-gray-400 flex flex-col items-center justify-center">
-                            <User className="h-10 w-10 mb-2 opacity-20" />
-                            <p>No se encontraron reservas con esos datos.</p>
+                        <div className="text-center p-16 bg-white rounded-xl border border-dashed border-gray-300 text-gray-400 flex flex-col items-center justify-center shadow-sm">
+                            <div className="bg-gray-50 p-4 rounded-full mb-3">
+                                <User className="h-8 w-8 text-gray-300" />
+                            </div>
+                            <p className="text-lg font-medium text-gray-500">No se encontraron reservas</p>
+                            <p className="text-sm">Verifique los datos ingresados e intente nuevamente.</p>
                         </div>
                     ) : (
-                        <Card className="overflow-hidden border-gray-200 shadow-sm">
-                            <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3">
-                                <h3 className="font-semibold text-gray-700">Resultados encontrados ({reservas.length})</h3>
+                        <Card className="overflow-hidden border-gray-200 shadow-md">
+                            <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                                <h3 className="font-semibold text-gray-700 ml-2">Resultados encontrados: {reservas.length}</h3>
                                 {selectedIds.length > 0 && (
                                     <Button
                                         variant="destructive"
                                         size="sm"
                                         onClick={() => setModalConfirmOpen(true)}
-                                        className="animate-in fade-in zoom-in w-full sm:w-auto shadow-sm"
+                                        className="animate-in fade-in zoom-in shadow-sm"
                                     >
                                         <Trash2 className="h-4 w-4 mr-2" />
                                         Cancelar ({selectedIds.length}) Seleccionadas
@@ -259,31 +263,30 @@ export default function CancelReservationPanel() {
                                 )}
                             </div>
 
-                            {/* RESPONSIVE: overflow-x-auto permite scroll horizontal en móviles */}
-                            <div className="overflow-x-auto">
+                            <div className="relative w-full overflow-auto">
                                 <table className="w-full text-sm text-left">
-                                    <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b">
+                                    <thead className="text-xs text-gray-500 uppercase bg-gray-100 border-b">
                                     <tr>
-                                        <th className="px-4 py-3 w-10 text-center">
+                                        <th className="px-6 py-4 w-14 text-center">
                                             <input
                                                 type="checkbox"
-                                                className="rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer h-4 w-4"
+                                                className="rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer h-4 w-4 transition-all"
                                                 checked={reservas.length > 0 && selectedIds.length === reservas.length}
                                                 onChange={toggleAll}
                                             />
                                         </th>
-                                        <th className="px-4 py-3 whitespace-nowrap">Huésped</th>
-                                        <th className="px-4 py-3 whitespace-nowrap">Habitación</th>
-                                        <th className="px-4 py-3 whitespace-nowrap">Detalle</th>
-                                        <th className="px-4 py-3 text-center whitespace-nowrap">Ingreso</th>
-                                        <th className="px-4 py-3 text-center whitespace-nowrap">Egreso</th>
-                                        <th className="px-4 py-3 text-center whitespace-nowrap">Estado</th>
+                                        <th className="px-6 py-4 font-semibold text-gray-600">Huésped Titular</th>
+                                        <th className="px-6 py-4 font-semibold text-gray-600">Habitación</th>
+                                        <th className="px-6 py-4 font-semibold text-gray-600">Tipo</th>
+                                        <th className="px-6 py-4 text-center font-semibold text-gray-600">Fecha Ingreso</th>
+                                        <th className="px-6 py-4 text-center font-semibold text-gray-600">Fecha Egreso</th>
+                                        <th className="px-6 py-4 text-center font-semibold text-gray-600">Estado</th>
                                     </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 bg-white">
                                     {reservas.map((res) => (
-                                        <tr key={res.idReserva} className={`hover:bg-red-50/30 transition-colors ${selectedIds.includes(res.idReserva) ? 'bg-red-50/60' : ''}`}>
-                                            <td className="px-4 py-3 text-center">
+                                        <tr key={res.idReserva} className={`group hover:bg-red-50/40 transition-colors duration-200 ${selectedIds.includes(res.idReserva) ? 'bg-red-50/70' : ''}`}>
+                                            <td className="px-6 py-4 text-center">
                                                 <input
                                                     type="checkbox"
                                                     className="rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer h-4 w-4"
@@ -291,33 +294,38 @@ export default function CancelReservationPanel() {
                                                     onChange={() => toggleSelection(res.idReserva)}
                                                 />
                                             </td>
-                                            <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
-                                                <div className="flex items-center gap-2">
-                                                    <User className="h-4 w-4 text-gray-400" />
-                                                    {res.apellidoHuesped}, {res.nombreHuesped}
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-gray-100 p-1.5 rounded-full text-gray-500 group-hover:bg-white group-hover:text-red-500 transition-colors">
+                                                        <User className="h-4 w-4" />
+                                                    </div>
+                                                    <span className="font-medium text-gray-900 text-base">
+                                                        {res.apellidoHuesped}, {res.nombreHuesped}
+                                                    </span>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                                    <span className="font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded">
-                                                        N° {res.numeroHabitacion}
-                                                    </span>
+                                            <td className="px-6 py-4">
+                                                <span className="font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
+                                                    Hab. {res.numeroHabitacion}
+                                                </span>
                                             </td>
-                                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                                                <div className="flex items-center gap-1">
-                                                    <BedDouble className="h-3 w-3" />
+                                            <td className="px-6 py-4 text-gray-600">
+                                                <div className="flex items-center gap-2">
+                                                    <BedDouble className="h-4 w-4 text-gray-400" />
                                                     {res.tipoHabitacion}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-center font-mono text-gray-600 whitespace-nowrap">
+                                            <td className="px-6 py-4 text-center font-mono text-gray-600 bg-gray-50/50">
                                                 {formatearFecha(res.fechaIngreso)}
                                             </td>
-                                            <td className="px-4 py-3 text-center font-mono text-gray-600 whitespace-nowrap">
+                                            <td className="px-6 py-4 text-center font-mono text-gray-600 bg-gray-50/50">
                                                 {formatearFecha(res.fechaEgreso)}
                                             </td>
-                                            <td className="px-4 py-3 text-center whitespace-nowrap">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-green-700 bg-green-100 px-2 py-1 rounded-full border border-green-200">
-                                                        Activa
-                                                    </span>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
+                                                    ACTIVA
+                                                </span>
                                             </td>
                                         </tr>
                                     ))}
@@ -331,37 +339,38 @@ export default function CancelReservationPanel() {
 
             {/* --- MODALES --- */}
 
-            {/* 1. Modal Alerta Genérico (Reemplaza a los window.alert) */}
+            {/* 1. Modal Alerta Genérico */}
             <ModalAlert
                 open={modalAlert.open}
                 title={modalAlert.title}
                 message={modalAlert.msg}
                 type={modalAlert.type}
                 onOk={() => setModalAlert(prev => ({...prev, open: false}))}
-                okText="Entendido"
+                okText="Aceptar"
             />
 
             {/* 2. Confirmación de Cancelación */}
             <Dialog open={modalConfirmOpen} onOpenChange={setModalConfirmOpen}>
-                <DialogContent className="border-red-200 bg-red-50 sm:max-w-md mx-4">
+                <DialogContent className="border-red-200 bg-red-50 sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle className="text-red-800 flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5" />
+                        <DialogTitle className="text-red-900 flex items-center gap-2 text-xl">
+                            <AlertTriangle className="h-6 w-6 text-red-600" />
                             Confirmar Cancelación
                         </DialogTitle>
-                        <DialogDescription className="text-red-700 pt-2">
-
-                            Estás a punto de cancelar <b>{selectedIds.length} reserva(s)</b>.
-                            <br/>
-                            Las habitaciones quedarán liberadas inmediatamente y esta acción no se puede deshacer.
+                        <DialogDescription className="text-red-800 pt-3 text-base">
+                            Está a punto de cancelar <b>{selectedIds.length} reserva(s)</b>.
+                            <ul className="list-disc list-inside mt-2 space-y-1 text-sm text-red-700">
+                                <li>Las habitaciones quedarán liberadas inmediatamente.</li>
+                                <li>Esta acción <b>no se puede deshacer</b>.</li>
+                            </ul>
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button variant="outline" onClick={() => setModalConfirmOpen(false)} className="border-red-200 text-red-700 hover:bg-red-100 w-full sm:w-auto">
-                            Volver
+                    <DialogFooter className="mt-4">
+                        <Button variant="outline" onClick={() => setModalConfirmOpen(false)} className="border-red-200 text-red-800 hover:bg-red-100 hover:text-red-900">
+                            Cancelar Operación
                         </Button>
-                        <Button onClick={handleConfirmarCancelacion} variant="destructive" disabled={loading} className="w-full sm:w-auto">
-                            {loading ? "Procesando..." : "Sí, Cancelar Reservas"}
+                        <Button onClick={handleConfirmarCancelacion} variant="destructive" disabled={loading} className="bg-red-700 hover:bg-red-800">
+                            {loading ? "Procesando..." : "Sí, Cancelar Definitivamente"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -369,18 +378,21 @@ export default function CancelReservationPanel() {
 
             {/* 3. Éxito */}
             <Dialog open={modalExitoOpen} onOpenChange={setModalExitoOpen}>
-                <DialogContent className="border-green-200 bg-green-50 sm:max-w-md mx-4">
+                <DialogContent className="border-green-200 bg-green-50 sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-green-800 flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5" />
+                        <DialogTitle className="text-green-800 flex items-center gap-2 text-xl">
+                            <CheckCircle2 className="h-6 w-6 text-green-600" />
                             Operación Exitosa
                         </DialogTitle>
-                        <DialogDescription className="text-green-700 pt-2">
-                            Las reservas seleccionadas han sido canceladas correctamente y las habitaciones están disponibles.
+                        <DialogDescription className="text-green-800 pt-2 text-base font-medium">
+                            Las reservas seleccionadas han sido canceladas correctamente.
                         </DialogDescription>
+                        <p className="text-sm text-green-700">
+                            Las habitaciones ya figuran como disponibles en la grilla.
+                        </p>
                     </DialogHeader>
-                    <DialogFooter>
-                        <Button onClick={() => setModalExitoOpen(false)} className="bg-green-700 hover:bg-green-800 text-white w-full">
+                    <DialogFooter className="mt-4">
+                        <Button onClick={() => setModalExitoOpen(false)} className="bg-green-700 hover:bg-green-800 text-white min-w-[100px]">
                             Aceptar
                         </Button>
                     </DialogFooter>
