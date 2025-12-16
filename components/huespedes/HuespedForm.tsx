@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react"; // Agregado Trash2
 import { HuespedDTO } from "@/src/dto/Huesped/Huesped.dto";
 import { AltaHuespedRequestDTO } from "@/src/dto/Huesped/AltaHuespedRequest.dto";
 import { ModificarHuespedRequestDTO } from "@/src/dto/Huesped/ModificarHuespedRequest.dto";
+import { BajaHuespedRequestDTO } from "@/src/dto/Huesped/BajaHuespedRequest.dto"; // Importar DTO baja
 import { HuespedApi } from "@/src/api/huesped.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,10 +49,10 @@ const handleNumberInput = (e: React.FormEvent<HTMLInputElement>) => {
 
 export function HuespedForm({ initialData, onBack, onCancel }: HuespedFormProps) {
     const api = new HuespedApi();
-    const formRef = useRef<HTMLFormElement>(null); // Referencia para limpiar el formulario
+    const formRef = useRef<HTMLFormElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Estados para Alertas Generales (Errores, warnings)
+    // Estados para Alertas Generales
     const [modalOpen, setModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
     const [modalTitle, setModalTitle] = useState('');
@@ -62,7 +63,10 @@ export function HuespedForm({ initialData, onBack, onCancel }: HuespedFormProps)
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [pendingPayload, setPendingPayload] = useState<AltaHuespedRequestDTO | ModificarHuespedRequestDTO | null>(null);
 
-    // NUEVOS ESTADOS: Para el flujo de "¿Cargar otro?"
+    // Estado para alerta de eliminación
+    const [deleteOpen, setDeleteOpen] = useState(false);
+
+    // Estados para "Cargar otro"
     const [successDialogOpen, setSuccessDialogOpen] = useState(false);
     const [createdGuestName, setCreatedGuestName] = useState("");
 
@@ -81,6 +85,7 @@ export function HuespedForm({ initialData, onBack, onCancel }: HuespedFormProps)
         setModalOpen(true);
     };
 
+    // --- LOGICA DE GUARDAR ---
     const submitAction = async (payload: AltaHuespedRequestDTO | ModificarHuespedRequestDTO) => {
         setIsSubmitting(true);
         try {
@@ -89,22 +94,17 @@ export function HuespedForm({ initialData, onBack, onCancel }: HuespedFormProps)
                 : await api.alta(payload as AltaHuespedRequestDTO);
 
             if (res.resultado.id === 0) {
-                // ÉXITO
                 if (isEditing) {
-                    // Si es edición, flujo normal: vuelve atrás
                     showAlert("success", "Operación Exitosa", "Datos actualizados correctamente.", () => onBack(true));
                 } else {
-                    // Si es ALTA, flujo especial: preguntar si cargar otro
                     setCreatedGuestName(`${payload.huesped.nombre} ${payload.huesped.apellido}`);
                     setSuccessDialogOpen(true);
                     setPendingPayload(null);
                 }
             } else if (res.resultado.id === 3) {
-                // DUPLICADO
                 setPendingPayload(payload);
                 setConfirmOpen(true);
             } else {
-                // ERROR
                 showAlert("error", "Error", res.resultado.mensaje);
             }
         } catch (err) {
@@ -156,13 +156,37 @@ export function HuespedForm({ initialData, onBack, onCancel }: HuespedFormProps)
         await submitAction(payload);
     };
 
+    // --- LOGICA DE ELIMINAR ---
+    const handleConfirmDelete = async () => {
+        if (!initialData?.idHuesped) return;
+        setDeleteOpen(false);
+        setIsSubmitting(true);
+
+        try {
+            const bajaPayload: BajaHuespedRequestDTO = { idHuesped: initialData.idHuesped };
+            const res = await api.baja(bajaPayload);
+
+            if (res.resultado.id === 0) {
+                showAlert("success", "Eliminado", "Huésped eliminado exitosamente.", () => onBack(true));
+            } else if (res.resultado.id === 2) {
+                showAlert("warning", "No se puede eliminar", res.resultado.mensaje);
+            } else {
+                showAlert("error", "Error", res.resultado.mensaje);
+            }
+        } catch (error) {
+            console.error(error);
+            showAlert("error", "Error", "Ocurrió un error de red al intentar eliminar.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const handleConfirmarDuplicado = async () => {
         if (!pendingPayload) return;
         setConfirmOpen(false);
         await submitAction({ ...pendingPayload, aceptarIgualmente: true });
     };
 
-    // Resetea el formulario para cargar uno nuevo
     const handleResetForm = () => {
         setSuccessDialogOpen(false);
         if (formRef.current) {
@@ -179,7 +203,7 @@ export function HuespedForm({ initialData, onBack, onCancel }: HuespedFormProps)
             </div>
 
             <form ref={formRef} onSubmit={handleSubmit} className="px-6 py-6 space-y-6 animate-in slide-in-from-right duration-300">
-                {/* Inputs Personales */}
+                {/* Inputs Personales (Igual que antes) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Apellido *</label><Input name="apellido" required defaultValue={initialData?.apellido || ""} onInput={handleTextInput} className="bg-white" /></div>
                     <div className="space-y-1.5"><label className="text-sm font-medium text-gray-700">Nombre *</label><Input name="nombre" required defaultValue={initialData?.nombre || ""} onInput={handleTextInput} className="bg-white" /></div>
@@ -226,9 +250,20 @@ export function HuespedForm({ initialData, onBack, onCancel }: HuespedFormProps)
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-6 border-t border-rose-100 mt-6">
-                    <Button type="button" variant="outline" onClick={onCancel} className="text-rose-900 border-rose-200 hover:bg-rose-50">Cancelar</Button>
-                    <Button type="submit" disabled={isSubmitting} className="bg-rose-900 hover:bg-rose-800 text-white min-w-[120px]">{isSubmitting ? "Guardando..." : "Guardar"}</Button>
+                {/* --- BOTONERA INFERIOR --- */}
+                <div className="flex justify-between items-center pt-6 border-t border-rose-100 mt-6">
+                    <div>
+                        {/* Botón Eliminar solo visible en edición */}
+                        {isEditing && (
+                            <Button type="button" variant="outline" onClick={() => setDeleteOpen(true)} className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300">
+                                <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                            </Button>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <Button type="button" variant="outline" onClick={onCancel} className="text-rose-900 border-rose-200 hover:bg-rose-50">Cancelar</Button>
+                        <Button type="submit" disabled={isSubmitting} className="bg-rose-900 hover:bg-rose-800 text-white min-w-[120px]">{isSubmitting ? "Guardando..." : "Guardar"}</Button>
+                    </div>
                 </div>
             </form>
 
@@ -242,23 +277,32 @@ export function HuespedForm({ initialData, onBack, onCancel }: HuespedFormProps)
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* ALERTA: ÉXITO ALTA Y PREGUNTA SI CARGAR OTRO */}
+            {/* ALERTA: ÉXITO ALTA */}
             <AlertDialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
                 <AlertDialogContent className="bg-green-50 border-green-200">
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-green-900">Alta Exitosa</AlertDialogTitle>
-                        <AlertDialogDescription className="text-green-800">
-                            El huésped: <strong>{createdGuestName}</strong> ha sido cargado correctamente. <br />
-                            ¿Desea cargar otro?
+                        <AlertDialogDescription className="text-green-800">El huésped: <strong>{createdGuestName}</strong> ha sido cargado correctamente. <br /> ¿Desea cargar otro?</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => onBack(true)} className="border-green-200 text-green-900 hover:bg-green-100">No</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleResetForm} className="bg-green-700 hover:bg-green-800 text-white border-green-800">Sí, cargar otro</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* ALERTA: CONFIRMACIÓN ELIMINAR (NUEVO) */}
+            <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <AlertDialogContent className="bg-red-50 border-red-200">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-red-900">¿Eliminar Huésped?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-red-800">
+                            Esta acción eliminará al huésped <strong>{initialData?.apellido}, {initialData?.nombre}</strong> permanentemente. Si tiene estadías asociadas, no se podrá eliminar.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => onBack(true)} className="border-green-200 text-green-900 hover:bg-green-100">
-                            No
-                        </AlertDialogCancel>
-                        <AlertDialogAction onClick={handleResetForm} className="bg-green-700 hover:bg-green-800 text-white border-green-800">
-                            Sí, cargar otro
-                        </AlertDialogAction>
+                        <AlertDialogCancel onClick={() => setDeleteOpen(false)} className="border-red-200 text-red-900 hover:bg-red-100">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700 text-white border-red-700">Sí, eliminar</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

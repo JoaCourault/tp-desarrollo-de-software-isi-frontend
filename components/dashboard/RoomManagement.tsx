@@ -11,6 +11,8 @@ import {
     ListChecks,
     CalendarDays,
     AlertTriangle,
+    Filter,
+    XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +44,7 @@ import {
     type HabitacionDisponibilidad,
 } from "@/components/GrillaDisponibilidad";
 
+// --- TIPOS ---
 interface Seleccion {
     idHabitacion: string;
     fechaDesde: string;
@@ -63,14 +66,15 @@ const findHabitacionById = (lista: HabitacionDisponibilidad[], idBusqueda: strin
         const idReal = h.habitacion.idHabitacion || h.habitacion.id_habitacion;
         return idReal === idBusqueda;
     });
-}; //uso id_habitacion porq el back me devuelve id_habitacion
+};
 
 export function RoomManagement() {
     // Estados de búsqueda
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
-    const [loading, setLoading] = useState(false);
+    const [tipoHabitacion, setTipoHabitacion] = useState("");
 
+    const [loading, setLoading] = useState(false);
     const [gridData, setGridData] = useState<HabitacionDisponibilidad[]>([]);
     const [searched, setSearched] = useState(false);
 
@@ -87,6 +91,7 @@ export function RoomManagement() {
     // Modales de Flujo
     const [guestFormOpen, setGuestFormOpen] = useState(false);
     const [pendingSelectionOpen, setPendingSelectionOpen] = useState(false);
+    const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
     // Datos del Huésped
     const [guestData, setGuestData] = useState({
@@ -129,6 +134,8 @@ export function RoomManagement() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
+    // --- FUNCIONES ---
+
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!desde || !hasta) return;
@@ -143,9 +150,15 @@ export function RoomManagement() {
         setSearched(false);
 
         try {
-            const res = await fetch(
-                `http://localhost:8080/Reserva/Disponibilidad?desde=${desde}&hasta=${hasta}`
-            );
+            const params = new URLSearchParams();
+            params.append("desde", desde);
+            params.append("hasta", hasta);
+            if (tipoHabitacion && tipoHabitacion !== "") {
+                params.append("tipoHabitacion", tipoHabitacion);
+            }
+
+            const res = await fetch(`http://localhost:8080/Reserva/Disponibilidad?${params.toString()}`);
+
             if (!res.ok) throw new Error("Error API");
             const data: HabitacionDisponibilidad[] = await res.json();
             setGridData(data);
@@ -160,12 +173,7 @@ export function RoomManagement() {
         }
     };
 
-    const handleCellClick = (
-        roomId: string,
-        dateStr: string,
-        estado: string,
-        numero: number
-    ) => {
+    const handleCellClick = (roomId: string, dateStr: string, estado: string, numero: number) => {
         if (isDatePast(dateStr)) return;
         if (estado === "OCUPADA" || estado === "MANTENIMIENTO") return;
 
@@ -194,7 +202,6 @@ export function RoomManagement() {
                 to = start;
             }
 
-            // CORRECCIÓN: Usamos el helper para encontrar la habitación de forma segura
             const habitacionActual = findHabitacionById(gridData, roomId);
 
             if (habitacionActual) {
@@ -223,14 +230,8 @@ export function RoomManagement() {
 
     const agregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
-
-        // CORRECCIÓN: Usamos el helper para encontrar la habitación
         const hab = findHabitacionById(gridData, tempSelect.roomId);
-
-        if (!hab) {
-            console.error("No se encontró la habitación con ID:", tempSelect.roomId);
-            return;
-        }
+        if (!hab) return;
 
         setSelecciones((prev) => [
             ...prev,
@@ -241,7 +242,6 @@ export function RoomManagement() {
                 numero: hab.habitacion.numero,
             },
         ]);
-
         setTempSelect({ start: null, end: null, roomId: null });
     };
 
@@ -267,6 +267,18 @@ export function RoomManagement() {
         setTempSelect({ start: null, end: null, roomId: null });
         setPendingSelectionOpen(false);
         setGuestFormOpen(true);
+    };
+
+    const handleFullCancel = () => {
+        setCancelConfirmOpen(false);
+        setSelecciones([]);
+        setTempSelect({ start: null, end: null, roomId: null });
+        setGuestData({ nombre: "", apellido: "", telefono: "" });
+        setSearched(false);
+        setGridData([]);
+        setDesde("");
+        setHasta("");
+        setTipoHabitacion("");
     };
 
     const handleConfirmarReserva = async () => {
@@ -304,14 +316,8 @@ export function RoomManagement() {
             }
 
             setGuestFormOpen(false);
-
             showInfo("success", "Reserva Creada", "La reserva se ha registrado exitosamente.", () => {
-                setSelecciones([]);
-                setGuestData({ nombre: "", apellido: "", telefono: "" });
-                setSearched(false);
-                setDesde("");
-                setHasta("");
-                setTempSelect({ start: null, end: null, roomId: null });
+                handleFullCancel();
             });
 
         } catch (err) {
@@ -320,7 +326,20 @@ export function RoomManagement() {
         }
     };
 
-    // Helper para renderizar número de habitación en el panel lateral
+    // --- NUEVAS FUNCIONES DE VALIDACIÓN ---
+
+    const handleNameInput = (e: React.ChangeEvent<HTMLInputElement>, field: 'nombre' | 'apellido') => {
+        // Solo permite letras y espacios. Reemplaza números o símbolos.
+        const cleanValue = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+        setGuestData(prev => ({ ...prev, [field]: cleanValue }));
+    };
+
+    const handlePhoneInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // Solo permite números. Reemplaza letras o símbolos.
+        const cleanValue = e.target.value.replace(/[^0-9]/g, '');
+        setGuestData(prev => ({ ...prev, telefono: cleanValue }));
+    };
+
     const selectedRoomNumber = tempSelect.roomId
         ? findHabitacionById(gridData, tempSelect.roomId)?.habitacion.numero
         : null;
@@ -352,9 +371,28 @@ export function RoomManagement() {
                             <label className="text-sm font-medium text-gray-700">Hasta</label>
                             <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} required />
                         </div>
+                        <div className="w-full sm:w-1/4">
+                            <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                                <Filter className="h-3 w-3" /> Tipo
+                            </label>
+                            <div className="relative">
+                                <select
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    value={tipoHabitacion}
+                                    onChange={(e) => setTipoHabitacion(e.target.value)}
+                                >
+                                    <option value="">Todas</option>
+                                    <option value="INDIVIDUAL_ESTANDAR">Individual Estándar</option>
+                                    <option value="DOBLE_ESTANDAR">Doble Estándar</option>
+                                    <option value="DOBLE_SUPERIOR">Doble Superior</option>
+                                    <option value="SUPERIOR_FAMILY_PLAN">Superior Family Plan</option>
+                                    <option value="SUITE_DOBLE">Suite Doble</option>
+                                </select>
+                            </div>
+                        </div>
                         <Button className="bg-rose-900 text-white hover:bg-rose-800 w-full sm:w-auto" disabled={loading}>
                             <Search className="h-4 w-4 mr-2" />
-                            {loading ? "Buscando..." : "Buscar Disponibilidad"}
+                            {loading ? "Buscando..." : "Buscar"}
                         </Button>
                     </form>
                 </CardContent>
@@ -366,7 +404,8 @@ export function RoomManagement() {
                         <Card className="border-rose-100 shadow-sm overflow-hidden">
                             <div className="p-4 border-b border-rose-100 bg-rose-50/30 flex justify-between items-center">
                                 <h3 className="font-semibold text-rose-950 flex items-center gap-2">
-                                    <Bed className="h-4 w-4" /> Estado de Habitaciones
+                                    <Bed className="h-4 w-4" />
+                                    Resultados {tipoHabitacion ? `(${tipoHabitacion.replace(/_/g, " ")})` : "(Todas)"}
                                 </h3>
                                 <span className="text-xs text-gray-400 hidden lg:inline-block">
                                     Presiona <kbd className="font-mono bg-gray-100 px-1 rounded border">ESC</kbd> para cancelar selección
@@ -395,7 +434,6 @@ export function RoomManagement() {
                                 {tempSelect.roomId ? (
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center bg-white p-2 rounded border border-blue-200">
-                                            {/* CORRECCIÓN VISUAL: Usamos la variable calculada arriba */}
                                             <span className="font-bold text-blue-900">
                                                 Hab {selectedRoomNumber || "?"}
                                             </span>
@@ -406,7 +444,6 @@ export function RoomManagement() {
                                                 )}
                                             </div>
                                         </div>
-
                                         <Button
                                             className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                                             onClick={agregarSeleccion}
@@ -421,7 +458,7 @@ export function RoomManagement() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-gray-200 shadow-sm h-fit max-h-[500px] flex flex-col">
+                        <Card className="border-gray-200 shadow-sm h-fit max-h-[600px] flex flex-col">
                             <CardHeader className="pb-3 border-b bg-gray-50">
                                 <CardTitle className="text-base font-semibold text-gray-800 flex justify-between items-center">
                                     <span className="flex items-center gap-2"><ListChecks className="h-4 w-4" /> Mis Reservas</span>
@@ -429,7 +466,7 @@ export function RoomManagement() {
                                 </CardTitle>
                             </CardHeader>
 
-                            <CardContent className="p-0 overflow-y-auto flex-1 custom-scrollbar">
+                            <CardContent className="p-0 overflow-y-auto flex-1 custom-scrollbar min-h-[100px]">
                                 {selecciones.length === 0 ? (
                                     <div className="p-6 text-center text-sm text-gray-400">No hay habitaciones seleccionadas.</div>
                                 ) : (
@@ -452,9 +489,16 @@ export function RoomManagement() {
                             </CardContent>
 
                             {(selecciones.length > 0 || (tempSelect.start && tempSelect.end)) && (
-                                <div className="p-4 border-t bg-gray-50">
+                                <div className="p-4 border-t bg-gray-50 space-y-3">
                                     <Button className="w-full bg-rose-900 hover:bg-rose-800 text-white shadow-md" onClick={checkPendingSelection}>
                                         Confirmar Todo
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="w-full border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 hover:border-red-300"
+                                        onClick={() => setCancelConfirmOpen(true)}
+                                    >
+                                        <XCircle className="h-4 w-4 mr-2" /> Cancelar Operación
                                     </Button>
                                 </div>
                             )}
@@ -465,11 +509,30 @@ export function RoomManagement() {
 
             <ModalAlert open={infoOpen} title={infoTitle} message={infoMessage} type={infoType} onOk={() => { setInfoOpen(false); if (infoOnOk) infoOnOk(); }} okText="Aceptar" />
 
+            <AlertDialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+                <AlertDialogContent className="bg-white">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-red-900">¿Desea cancelar la operación?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Si cancela ahora, perderá las fechas seleccionadas, las habitaciones agregadas a la lista y los filtros aplicados.
+                            <br /><br />
+                            Volverá a la pantalla inicial de búsqueda.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setCancelConfirmOpen(false)}>No, continuar reservando</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleFullCancel} className="bg-red-600 hover:bg-red-700 text-white border-red-700">
+                            Sí, cancelar todo
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <AlertDialog open={pendingSelectionOpen} onOpenChange={setPendingSelectionOpen}>
                 <AlertDialogContent className="bg-amber-50 border-amber-200">
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-amber-800 flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Selección Pendiente</AlertDialogTitle>
-                        <AlertDialogDescription className="text-amber-700">Tienes una habitación seleccionada en la grilla que no has agregado a tu lista.<br/><br/>¿Deseas agregarla a la reserva o descartarla?</AlertDialogDescription>
+                        <AlertDialogDescription className="text-amber-700">Tienes una habitación seleccionada en la grilla que no has agregado a tu lista.<br /><br />¿Deseas agregarla a la reserva o descartarla?</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel onClick={() => setPendingSelectionOpen(false)} className="border-amber-200 text-amber-900 hover:bg-amber-100">Cancelar</AlertDialogCancel>
@@ -486,9 +549,24 @@ export function RoomManagement() {
                         <DialogDescription>Estás por reservar <b>{selecciones.length} habitaciones</b>.</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
-                        <Input placeholder="Nombre" value={guestData.nombre} onChange={(e) => setGuestData({ ...guestData, nombre: e.target.value })} />
-                        <Input placeholder="Apellido" value={guestData.apellido} onChange={(e) => setGuestData({ ...guestData, apellido: e.target.value })} />
-                        <Input placeholder="Teléfono" value={guestData.telefono} onChange={(e) => setGuestData({ ...guestData, telefono: e.target.value })} />
+                        {/* VALIDACIÓN DE NOMBRE */}
+                        <Input
+                            placeholder="Nombre"
+                            value={guestData.nombre}
+                            onChange={(e) => handleNameInput(e, 'nombre')}
+                        />
+                        {/* VALIDACIÓN DE APELLIDO */}
+                        <Input
+                            placeholder="Apellido"
+                            value={guestData.apellido}
+                            onChange={(e) => handleNameInput(e, 'apellido')}
+                        />
+                        {/* VALIDACIÓN DE TELÉFONO */}
+                        <Input
+                            placeholder="Teléfono"
+                            value={guestData.telefono}
+                            onChange={handlePhoneInput}
+                        />
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setGuestFormOpen(false)}>Cancelar</Button>

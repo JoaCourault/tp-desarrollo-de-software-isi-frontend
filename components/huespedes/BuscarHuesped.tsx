@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, Search as SearchIcon, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
+import { UserPlus, Search as SearchIcon, ChevronDown, ChevronUp, Pencil } from "lucide-react"; // Se quitó Trash2
 import { HuespedApi } from "@/src/api/huesped.api";
 import { HuespedDTO } from "@/src/dto/Huesped/Huesped.dto";
 import { BuscarHuespedRequestDTO } from "@/src/dto/Huesped/BuscarHuespedRequest.dto";
-import { BajaHuespedRequestDTO } from "@/src/dto/Huesped/BajaHuespedRequest.dto";
+// Se quitó BajaHuespedRequestDTO
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ModalAlert from "@/components/modalAlert/modalAlert";
@@ -41,8 +41,7 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
     const [modalTitle, setModalTitle] = useState('');
     const [modalMessage, setModalMessage] = useState('');
 
-    const [deleteOpen, setDeleteOpen] = useState(false);
-    const [huespedToDelete, setHuespedToDelete] = useState<string | null>(null);
+    // Se eliminaron los estados de deleteOpen y huespedToDelete
 
     const [suggestCreateOpen, setSuggestCreateOpen] = useState(false);
 
@@ -98,38 +97,7 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
         setExpandedId(prev => prev === id ? null : id);
     };
 
-    const handleDeleteClick = (e: React.MouseEvent, id: string | null) => {
-        e.stopPropagation();
-        if (id) {
-            setHuespedToDelete(id);
-            setDeleteOpen(true);
-        }
-    };
-
-    const confirmDelete = async () => {
-        if (!huespedToDelete) return;
-        setDeleteOpen(false);
-
-        try {
-            const bajaPayload: BajaHuespedRequestDTO = { idHuesped: huespedToDelete };
-            const res = await api.baja(bajaPayload);
-
-            if (res.resultado.id === 0) {
-                showAlert("success", "Eliminado", "Huésped eliminado exitosamente.");
-                setResultados(prev => prev.filter(h => h.idHuesped !== huespedToDelete));
-                setExpandedId(null);
-            } else if (res.resultado.id === 2) {
-                showAlert("warning", "No se puede eliminar", res.resultado.mensaje);
-            } else {
-                showAlert("error", "Error", res.resultado.mensaje);
-            }
-        } catch (error) {
-            console.error(error);
-            showAlert("error", "Error", "Ocurrió un error de red al intentar eliminar.");
-        } finally {
-            setHuespedToDelete(null);
-        }
-    };
+    // Se eliminó handleDeleteClick y confirmDelete
 
     return (
         <div className="flex flex-col h-full">
@@ -173,8 +141,8 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
                                                     <div><span className="font-semibold text-xs uppercase text-rose-900/50">Ocupación</span>{h.ocupacion || '-'}</div>
                                                 </div>
                                                 <div className="flex gap-3 justify-end mt-2">
+                                                    {/* Boton Modificar solamente */}
                                                     <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onGoToEdit(h); }} className="border-amber-200 text-amber-700 hover:bg-amber-50"><Pencil className="h-3.5 w-3.5 mr-2" /> Modificar</Button>
-                                                    <Button variant="outline" size="sm" onClick={(e) => handleDeleteClick(e, h.idHuesped || null)} className="border-red-200 text-red-700 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5 mr-2" /> Eliminar</Button>
                                                 </div>
                                             </div>
                                         )}
@@ -193,12 +161,6 @@ export function BuscarHuespedForm({ onGoToCreate, onGoToEdit }: BuscarHuespedPro
             </div>
 
             <ModalAlert open={modalOpen} title={modalTitle} message={modalMessage} type={modalType} onOk={() => setModalOpen(false)} okText="Aceptar" />
-            <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                <AlertDialogContent className="bg-red-50 border-red-200">
-                    <AlertDialogHeader><AlertDialogTitle className="text-red-900">¿Eliminar Huésped?</AlertDialogTitle><AlertDialogDescription className="text-red-800">Esta acción eliminará al huésped permanentemente. Si tiene estadías asociadas, no se podrá eliminar.</AlertDialogDescription></AlertDialogHeader>
-                    <AlertDialogFooter><AlertDialogCancel onClick={() => { setHuespedToDelete(null); setDeleteOpen(false); }} className="border-red-200 text-red-900 hover:bg-red-100">Cancelar</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white border-red-700">Sí, eliminar</AlertDialogAction></AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
             <AlertDialog open={suggestCreateOpen} onOpenChange={setSuggestCreateOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader><AlertDialogTitle>Huésped no encontrado</AlertDialogTitle><AlertDialogDescription>No se encontraron resultados con los filtros ingresados. ¿Quiere ir a dar de alta un huésped?</AlertDialogDescription></AlertDialogHeader>
