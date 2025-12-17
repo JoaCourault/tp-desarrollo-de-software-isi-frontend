@@ -9,7 +9,7 @@ export interface DireccionDTO {
     numero: string | null;
     departamento: string | null;
     piso: string | null;
-    cp: string | null;
+    codigoPostal: string | null;
     localidad: string | null;
     provincia: string | null;
     pais: string | null;
@@ -36,4 +36,5 @@ export interface HuespedDTO {
 
 export interface AltaHuespedRequestDTO {
     huesped: HuespedDTO;
+    aceptarIgualmente?: boolean;
 }

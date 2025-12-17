@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { PayerForm } from "./ResponsablePago/PayerForm";
 import { EstadiaDetalleDTO, PayerDTO, ItemFacturable, PersonaFisicaDTO, PersonaJuridicaDTO } from "@/src/dto/Facturacion.dto";
 import { generarFacturaPDF } from "@/src/utils/pdfGenerator";
-import { Search, PlusCircle, AlertCircle, Loader2, RefreshCcw } from "lucide-react";
+import { Search, PlusCircle, AlertCircle, Loader2, RefreshCcw, Users as UsersIcon, Check as CheckIcon } from "lucide-react";
 
 // --- IMPORTS ---
 import { estadiaApi } from "@/src/api/estadia.api";
@@ -34,7 +34,7 @@ export function CheckOutPanel() {
 
     const [loading, setLoading] = useState(false);
 
-    // --- LÓGICA DE RESETEO (Para nueva operación) ---
+    // --- LÓGICA DE RESETEO ---
     const handleReset = () => {
         setStep(0);
         setSearchRoom("");
@@ -50,11 +50,9 @@ export function CheckOutPanel() {
         setLoading(true);
         try {
             const data = await estadiaApi.buscarPorHabitacion(searchRoom);
-
             if (data.items) {
                 data.items.forEach(i => i.seleccionado = true);
             }
-
             setEstadiaData(data);
             setItemsToBill(data.items || []);
             setStep(1);
@@ -76,7 +74,6 @@ export function CheckOutPanel() {
 
         try {
             const found = await responsableApi.buscarPorCuit(searchCuit);
-
             if (found) {
                 setSelectedPayer(found);
             } else {
@@ -125,7 +122,6 @@ export function CheckOutPanel() {
         const tipoFact = determinarTipoFactura();
 
         try {
-            // 1. REGISTRAR FACTURA EN BACKEND
             const resultado = await facturacionApi.generar({
                 idEstadia: estadiaData.idEstadia,
                 idResponsable: selectedPayer.idResponsable!,
@@ -139,7 +135,6 @@ export function CheckOutPanel() {
                 total: totalCalculado
             });
 
-            // 2. GENERAR PDF
             generarFacturaPDF({
                 numeroComprobante: resultado.numeroComprobante,
                 fechaEmision: new Date().toLocaleDateString(),
@@ -159,8 +154,9 @@ export function CheckOutPanel() {
     };
 
     return (
-        <div className="w-full max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <Card className="shadow-md border-rose-100">
+        // Quitamos cualquier wrapper extraño, dejamos que tome el ancho del contenedor padre
+        <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Card className="shadow-md border-rose-100 bg-white">
                 <CardHeader className="bg-rose-50/50 border-b border-rose-100 pb-4">
                     <CardTitle className="text-rose-950 text-2xl font-bold flex items-center gap-2">
                         Facturación & Check-Out
@@ -176,8 +172,7 @@ export function CheckOutPanel() {
 
                 <CardContent className="pt-8 px-8 min-h-[400px]">
                     <div className="space-y-6">
-
-                        {/* --- PASO 0: BÚSQUEDA --- */}
+                        {/* PASO 0 */}
                         {step === 0 && (
                             <div className="max-w-xl mx-auto space-y-6 mt-8">
                                 <div className="grid grid-cols-2 gap-6 items-end">
@@ -211,7 +206,7 @@ export function CheckOutPanel() {
                             </div>
                         )}
 
-                        {/* --- PASO 1: RESPONSABLE --- */}
+                        {/* PASO 1 */}
                         {step === 1 && (
                             <div className="max-w-4xl mx-auto">
                                 {showCreateForm ? (
@@ -222,10 +217,9 @@ export function CheckOutPanel() {
                                     />
                                 ) : (
                                     <div className="space-y-8">
-                                        {/* Ocupantes de la estadía */}
                                         <div className="bg-rose-50 p-6 rounded-lg border border-rose-100 shadow-sm">
                                             <h4 className="font-bold text-rose-900 mb-4 flex items-center gap-2 text-lg">
-                                                <UsersIcon /> Ocupantes (Selección Rápida)
+                                                <UsersIcon size={20} /> Ocupantes (Selección Rápida)
                                             </h4>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {estadiaData?.ocupantes?.length === 0 && <p className="text-sm text-gray-500 italic col-span-2">No hay ocupantes registrados.</p>}
@@ -240,13 +234,12 @@ export function CheckOutPanel() {
                                                             <span className="font-bold text-gray-800 block">{(occ as PersonaFisicaDTO).nombre} {(occ as PersonaFisicaDTO).apellido}</span>
                                                             <span className="text-sm text-gray-500 block">DNI: {(occ as PersonaFisicaDTO).dni}</span>
                                                         </div>
-                                                        {selectedPayer?.idResponsable === occ.idResponsable && <CheckIcon />}
+                                                        {selectedPayer?.idResponsable === occ.idResponsable && <CheckIcon className="text-rose-600" />}
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
 
-                                        {/* Buscador de Terceros */}
                                         <div className="border-t pt-6">
                                             <Label className="mb-3 block text-gray-700 font-medium">Facturar a un tercero</Label>
                                             <div className="flex gap-3">
@@ -281,14 +274,13 @@ export function CheckOutPanel() {
                                                 </div>
                                             )}
 
-                                            {/* Visualización de seleccionado externo */}
                                             {selectedPayer && !estadiaData?.ocupantes?.find(o => o.idResponsable === selectedPayer.idResponsable) && (
                                                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800 font-semibold flex justify-between items-center shadow-sm">
                                                     <span className="flex flex-col">
                                                         <span className="text-xs uppercase text-green-600 mb-1">Responsable Externo Seleccionado</span>
                                                         <span className="text-lg">{selectedPayer.esPersonaJuridica ? (selectedPayer as PersonaJuridicaDTO).razonSocial : `${(selectedPayer as PersonaFisicaDTO).nombre} ${(selectedPayer as PersonaFisicaDTO).apellido}`}</span>
                                                     </span>
-                                                    <CheckIcon />
+                                                    <CheckIcon className="text-green-600" />
                                                 </div>
                                             )}
                                         </div>
@@ -308,10 +300,9 @@ export function CheckOutPanel() {
                             </div>
                         )}
 
-                        {/* --- PASO 2: ITEMS --- */}
+                        {/* PASO 2 */}
                         {step === 2 && selectedPayer && (
                             <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in">
-                                {/* Cabecera Responsable Resumida */}
                                 <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 flex justify-between items-start">
                                     <div>
                                         <p className="text-gray-500 font-bold uppercase tracking-wider text-xs mb-1">Responsable de Pago</p>
@@ -329,7 +320,6 @@ export function CheckOutPanel() {
                                     </div>
                                 </div>
 
-                                {/* Tabla de Items */}
                                 <div className="border rounded-lg overflow-hidden shadow-sm">
                                     <div className="bg-gray-100 p-3 border-b font-semibold text-sm grid grid-cols-12 text-gray-700">
                                         <div className="col-span-1 text-center">Sel.</div>
@@ -354,14 +344,12 @@ export function CheckOutPanel() {
                                             </div>
                                         ))}
                                     </div>
-                                    {/* Footer Total */}
                                     <div className="bg-rose-50 p-6 flex justify-between items-center border-t border-rose-100">
                                         <span className="font-bold text-rose-900 text-lg">TOTAL A PAGAR</span>
                                         <span className="text-2xl font-bold text-rose-900">$ {calcularTotal().toLocaleString()}</span>
                                     </div>
                                 </div>
 
-                                {/* Botones de Acción */}
                                 <div className="flex justify-between pt-6">
                                     <Button variant="outline" onClick={() => setStep(1)} disabled={loading} className="px-6">Atrás</Button>
                                     <Button
@@ -380,11 +368,11 @@ export function CheckOutPanel() {
                             </div>
                         )}
 
-                        {/* --- PASO 3: ÉXITO --- */}
+                        {/* PASO 3 */}
                         {step === 3 && (
                             <div className="flex flex-col items-center justify-center py-16 animate-in zoom-in-95 duration-500">
                                 <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
-                                    <CheckIconLarge />
+                                    <CheckIcon className="text-green-600 w-12 h-12" />
                                 </div>
                                 <h3 className="text-3xl font-bold text-rose-900 mb-2">¡Facturación Exitosa!</h3>
                                 <p className="text-gray-600 text-lg mb-8 text-center max-w-md">
@@ -402,8 +390,3 @@ export function CheckOutPanel() {
         </div>
     );
 }
-
-// Iconos Auxiliares
-const UsersIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
-const CheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-rose-600"><polyline points="20 6 9 17 4 12"/></svg>;
-const CheckIconLarge = () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-green-600"><polyline points="20 6 9 17 4 12"/></svg>;

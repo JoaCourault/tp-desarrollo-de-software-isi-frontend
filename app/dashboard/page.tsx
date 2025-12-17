@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Hotel, LogOut, Users, Bed, CheckCircle, XCircle, CreditCard } from "lucide-react";
 
 // Componentes existentes
-import { GuestManagement } from "@/components/dashboard/GuestManagement";
+import { GuestManagement } from "@/components/dashboard/Huesped/GuestManagement";
 import { RoomManagement } from "@/components/dashboard/RoomManagement";
 import CheckInPanel from "@/components/dashboard/CheckInPanel";
 import { CheckOutPanel } from "@/components/dashboard/CheckOutPanel";
@@ -24,7 +24,11 @@ export default function DashboardPage() {
         if (!usuario) {
             router.push("/");
         } else {
-            setIsChecking(false);
+            // setTimeout para evitar el warning de setState en useEffect
+            const timer = setTimeout(() => {
+                setIsChecking(false);
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [router]);
 
@@ -105,7 +109,7 @@ export default function DashboardPage() {
                             <CheckCircle className="w-4 h-4" /> Check-In
                         </Button>
 
-                        {/* --- TAB: CHECK-OUT / FACTURACIÓN --- */}
+                        {/* TAB: CHECK-OUT / FACTURACIÓN */}
                         <Button
                             variant={activeTab === "checkout" ? "secondary" : "ghost"}
                             onClick={() => setActiveTab("checkout")}
@@ -140,17 +144,8 @@ export default function DashboardPage() {
                 {activeTab === "checkin" && <CheckInPanel />}
                 {activeTab === "cancelar" && <CancelReservationPanel />}
 
-                {/* Renderizamos el CheckOutPanel cuando el tab está activo */}
-                {/* Nota: Al ser un Dialog, se abrirá sobre el fondo blanco */}
-                {activeTab === "checkout" && (
-                    <div className="flex h-[50vh] w-full items-center justify-center text-gray-400">
-                        <CheckOutPanel
-                            isOpen={true}
-                            onClose={() => setActiveTab("guests")} // Al cerrar volvemos a inicio
-                        />
-                        <p>Abriendo módulo de facturación...</p>
-                    </div>
-                )}
+                {/* AHORA SÍ: CheckOutPanel integrado como una pestaña normal */}
+                {activeTab === "checkout" && <CheckOutPanel />}
             </main>
         </div>
     );
