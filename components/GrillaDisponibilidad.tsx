@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 // --- TIPOS ---
 export interface HabitacionDTO {
     id_habitacion: string;
@@ -10,11 +12,9 @@ export interface HabitacionDTO {
 
 export interface DisponibilidadDia {
     fecha: string;
-    // Agregamos null por si acaso, aunque idealmente es string fijo
     estado: "DISPONIBLE" | "OCUPADA" | "RESERVADA" | "MANTENIMIENTO";
     idReserva?: string;
     esSalida?: boolean;
-    // Indica qué tipo de evento finalizó: 'ESTADIA' o 'RESERVA'
     tipoSalida?: "ESTADIA" | "RESERVA" | null;
 }
 
@@ -80,6 +80,12 @@ export function GrillaDisponibilidad({
                                          modo
                                      }: GrillaProps) {
 
+    // --- LÓGICA DE ORDENAMIENTO (ASCENDENTE POR NÚMERO) ---
+    const sortedData = useMemo(() => {
+        if (!data) return [];
+        return [...data].sort((a, b) => a.habitacion.numero - b.habitacion.numero);
+    }, [data]);
+
     const isTempSelected = (roomId: string, dateStr: string) => {
         if (tempSelection.roomId && tempSelection.roomId !== roomId) return false;
         if (!tempSelection.start) return false;
@@ -113,7 +119,7 @@ export function GrillaDisponibilidad({
                     <th className="p-3 text-left bg-gray-50 border-b text-gray-600 font-medium sticky left-0 z-20 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         Habitación
                     </th>
-                    {data[0]?.disponibilidad?.map((d, i) => {
+                    {sortedData[0]?.disponibilidad?.map((d, i) => {
                         const esHoy = d.fecha === getTodayString();
                         const highlight = (modo === "checkin" && esHoy);
                         return (
@@ -128,7 +134,7 @@ export function GrillaDisponibilidad({
                 </tr>
                 </thead>
                 <tbody>
-                {data.map(row => (
+                {sortedData.map(row => (
                     <tr key={row.habitacion.id_habitacion} className="hover:bg-gray-50/30">
                         <td className="p-3 text-left bg-white border-r border-b sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                             <div className={`font-bold text-sm ${colorHabitacion}`}>
@@ -144,6 +150,7 @@ export function GrillaDisponibilidad({
                             const esFinal = isFinalSelected(row.habitacion.id_habitacion, dia.fecha);
                             const esHoy = dia.fecha === getTodayString();
                             const pasado = isDatePast(dia.fecha);
+                            const esInicioMismaHab = tempSelection.roomId === row.habitacion.id_habitacion && tempSelection.start === dia.fecha && !tempSelection.end;
 
                             // --- LÓGICA DE ESTILOS Y PRIORIDADES ---
 
@@ -205,8 +212,8 @@ export function GrillaDisponibilidad({
                                 txtColor = "text-gray-300";
                                 cursor = "cursor-not-allowed";
                                 if(dia.esSalida) {
-                                     bg = "bg-gray-100";
-                                     content = "•";
+                                    bg = "bg-gray-100";
+                                    content = "•";
                                 }
                             }
 
@@ -217,15 +224,19 @@ export function GrillaDisponibilidad({
                             }
 
                             if (esSeleccionado) {
-                                bg = modo === "checkin" ? "bg-blue-600 shadow-sm" : "bg-rose-600 shadow-sm";
+                                bg = "bg-blue-600 shadow-sm";
                                 txtColor = "text-white font-bold";
                                 content = "+";
+                            }
+
+                            if (esInicioMismaHab) {
+                                cursor = "cursor-not-allowed";
                             }
 
                             return (
                                 <td
                                     key={dia.fecha}
-                                    onClick={() => !pasado && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero, dia.idReserva)}
+                                    onClick={() => !pasado && !esInicioMismaHab && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero, dia.idReserva)}
                                     className={`p-1 border-b border-r h-10 transition-all duration-150 ${bg} ${txtColor} ${cursor} ${borderClass} text-center align-middle`}
                                 >
                                     {content}
