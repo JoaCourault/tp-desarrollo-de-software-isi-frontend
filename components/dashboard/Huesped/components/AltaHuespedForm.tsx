@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { ArrowLeft, Save, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Save, AlertTriangle, CheckCircle2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"; // Importamos Card
 import ModalAlert from "@/components/modalAlert/modalAlert";
 import { HuespedApi } from "@/src/api/huesped.api";
 import { AltaHuespedRequestDTO } from "@/src/dto/Huesped/AltaHuespedRequest.dto";
@@ -31,8 +32,10 @@ export function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
     const [modalAlert, setModalAlert] = useState<{ open: boolean; type: 'info'|'warning'|'error'|'success'; title: string; msg: string }>({ open: false, type: 'info', title: '', msg: '' });
     const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
     const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
-    const [successActionOpen, setSuccessActionOpen] = useState(false);
     const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+
+    // Estado para manejar la vista de éxito con los datos del huésped creado
+    const [createdGuest, setCreatedGuest] = useState<{ nombre: string; apellido: string } | null>(null);
 
     const [pendingPayload, setPendingPayload] = useState<AltaHuespedRequestDTO | null>(null);
     const [currentPayload, setCurrentPayload] = useState<AltaHuespedRequestDTO | null>(null);
@@ -56,7 +59,6 @@ export function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
         if (!nombre || !REGEX.LETRAS_ESPACIOS.test(nombre)) return "El nombre es obligatorio (solo letras).";
         if (!numDoc || !REGEX.NUMEROS.test(numDoc)) return "El número de documento debe ser numérico.";
 
-        // Validación original (Alfanumérico)
         if (!cp || !REGEX.ALFANUMERICO.test(cp)) return "El CP es obligatorio (letras y números).";
 
         return null;
@@ -119,7 +121,13 @@ export function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
             if (res.resultado.id === 0) {
                 setDuplicateModalOpen(false);
                 setPendingPayload(null);
-                setSuccessActionOpen(true);
+
+                // CAMBIO: En lugar de abrir modal, seteamos el huésped creado para mostrar la Card
+                setCreatedGuest({
+                    nombre: payload.huesped.nombre,
+                    apellido: payload.huesped.apellido
+                });
+
             } else if (res.resultado.id === 3) {
                 setPendingPayload(payload);
                 setDuplicateModalOpen(true);
@@ -140,10 +148,52 @@ export function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
 
     const handleLoadAnother = () => {
         formRef.current?.reset();
-        setSuccessActionOpen(false);
+        setCreatedGuest(null); // Volvemos a mostrar el formulario
         setCurrentPayload(null);
+        setPendingPayload(null);
     };
 
+    // --- VISTA DE ÉXITO (CARD) ---
+    if (createdGuest) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full p-6 animate-in zoom-in-95 duration-300 min-h-[500px]">
+                <Card className="w-full max-w-md border-green-200 bg-green-50 shadow-lg">
+                    <CardHeader className="text-center pb-2">
+                        <div className="mx-auto bg-green-100 p-3 rounded-full w-fit mb-4">
+                            <CheckCircle2 className="h-10 w-10 text-green-600" />
+                        </div>
+                        <CardTitle className="text-2xl text-green-800">¡Huésped Creado!</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-center space-y-6">
+                        <p className="text-green-700 text-lg">
+                            El huésped <span className="font-bold">{createdGuest.nombre} {createdGuest.apellido}</span> ha sido creado exitosamente.
+                        </p>
+
+                        <div className="flex flex-col gap-3 pt-2">
+                            <Button
+                                onClick={handleLoadAnother}
+                                className="bg-green-600 hover:bg-green-700 text-white w-full h-12 text-md"
+                            >
+                                <UserPlus className="mr-2 h-5 w-5" />
+                                Cargar otro huésped
+                            </Button>
+
+                            <Button
+                                variant="outline"
+                                onClick={onBack}
+                                className="border-green-200 text-green-700 hover:bg-green-100 w-full h-12"
+                            >
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Volver al inicio
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    // --- VISTA DE FORMULARIO ---
     return (
         <>
             <div className="border-b border-rose-100 px-6 py-4 bg-rose-50/30 flex items-center gap-3">
@@ -204,7 +254,6 @@ export function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
                 </div>
             </form>
 
-            {/* MODALES IGUAL QUE ANTES */}
             <ModalAlert open={modalAlert.open} title={modalAlert.title} message={modalAlert.msg} type={modalAlert.type} onOk={() => setModalAlert(prev => ({...prev, open: false}))} okText="Aceptar" />
 
             <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
@@ -225,13 +274,6 @@ export function AltaHuespedForm({ onBack }: AltaHuespedFormProps) {
                 <DialogContent className="bg-yellow-50 border-yellow-200">
                     <DialogHeader><DialogTitle className="text-yellow-800"><AlertTriangle/> Huésped Existente</DialogTitle><DialogDescription>El documento ya existe. ¿Desea continuar?</DialogDescription></DialogHeader>
                     <DialogFooter><Button variant="outline" onClick={() => setDuplicateModalOpen(false)}>Corregir</Button><Button onClick={handleConfirmarDuplicado} className="bg-yellow-600 text-white">Aceptar Igualmente</Button></DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={successActionOpen} onOpenChange={setSuccessActionOpen}>
-                <DialogContent className="bg-green-50 border-green-200">
-                    <DialogHeader><DialogTitle className="text-green-800"><CheckCircle2/> ¡Creado!</DialogTitle><DialogDescription>Huésped guardado exitosamente.</DialogDescription></DialogHeader>
-                    <DialogFooter><Button variant="outline" onClick={onBack}>Volver al Menú</Button><Button onClick={handleLoadAnother} className="bg-green-700 text-white">Cargar Otro</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
         </>
