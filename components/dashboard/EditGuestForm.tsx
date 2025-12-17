@@ -26,7 +26,7 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-// --- VALIDACIONES ---
+//  VALIDACIONES 
 const REGEX = {
     LETRAS_ESPACIOS: /^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]+$/,
     NUMEROS: /^[0-9]+$/,
@@ -60,7 +60,7 @@ export function EditGuestForm({ guestData, onBack, onSuccess }: EditGuestFormPro
 
     const [pendingPayload, setPendingPayload] = useState<ModificarHuespedRequestDTO | null>(null);
 
-    // --- ESTILOS VISUALES ---
+    //  ESTILOS VISUALES 
     const getInputStyle = (fieldValue: string | null | undefined, initialValue: string | null | undefined) => {
         const valActual = fieldValue ?? "";
         const valInicial = initialValue ?? "";
@@ -83,7 +83,7 @@ export function EditGuestForm({ guestData, onBack, onSuccess }: EditGuestFormPro
         setFormData(prev => ({ ...prev, tipoDoc: { ...prev.tipoDoc, tipoDocumento: e.target.value } }));
     };
 
-    // --- VALIDACIÓN ---
+    //  VALIDACIÓN 
     const validarCampos = (): string | null => {
         if (!REGEX.LETRAS_ESPACIOS.test(formData.apellido)) return "El apellido solo debe contener letras y espacios.";
         if (!REGEX.LETRAS_ESPACIOS.test(formData.nombre)) return "El nombre solo debe contener letras y espacios.";
@@ -107,7 +107,7 @@ export function EditGuestForm({ guestData, onBack, onSuccess }: EditGuestFormPro
         return null;
     };
 
-    // --- PREPARAR ENVÍO ---
+    //  PREPARAR ENVÍO 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const error = validarCampos();
@@ -158,7 +158,7 @@ export function EditGuestForm({ guestData, onBack, onSuccess }: EditGuestFormPro
         }
     };
 
-    // --- MANEJO DEL BOTÓN OK DEL MODAL PRINCIPAL ---
+    //  MANEJO DEL BOTÓN OK DEL MODAL PRINCIPAL 
     const handleAlertOk = () => {
         setAlertModal(prev => ({...prev, open: false}));
         // Si el modal que se cerró era de ÉXITO, entonces volvemos a la pantalla anterior

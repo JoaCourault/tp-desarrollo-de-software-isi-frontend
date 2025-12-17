@@ -37,7 +37,7 @@ import {
 // Importamos la constante compartida
 import { TIPOS_HABITACION } from "@/src/constants/tiposHabitacion";
 
-// --- TIPOS LOCALES ---
+//  TIPOS LOCALES 
 interface Seleccion {
     idHabitacion: string;
     fechaDesde: string;
@@ -45,7 +45,7 @@ interface Seleccion {
     numero: number;
 }
 
-// --- UTILIDADES ---
+//  UTILIDADES 
 const isDatePast = (dateStr: string) => {
     const checkDate = new Date(dateStr + "T00:00:00");
     const today = new Date();
@@ -62,7 +62,7 @@ const getNextDay = (dateStr: string) => {
 };
 
 
-// --- COMPONENTE PRINCIPAL ---
+//  COMPONENTE PRINCIPAL 
 export function RoomManagement() {
 
     // Estados de búsqueda
@@ -89,7 +89,7 @@ export function RoomManagement() {
     const [alertOpen, setAlertOpen] = useState(false); // Modal de selección pendiente
     const [guestData, setGuestData] = useState({ nombre: "", apellido: "", telefono: "" });
 
-    // --- MODAL DE ALERTAS GENÉRICAS ---
+    //  MODAL DE ALERTAS GENÉRICAS 
     const [modalAlert, setModalAlert] = useState<{
         open: boolean;
         type: 'info'|'warning'|'error'|'success';
@@ -119,7 +119,7 @@ export function RoomManagement() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
-    // --- LOGICA ---
+    //  LOGICA 
 
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -299,7 +299,7 @@ export function RoomManagement() {
         }
     };
 
-    // --- RENDER ---
+    //  RENDER 
     return (
         <div className="container mx-auto max-w-7xl p-4 sm:p-6 space-y-8 animate-in fade-in duration-500 pb-10 min-h-screen">
 
@@ -476,7 +476,7 @@ export function RoomManagement() {
                 </div>
             )}
 
-            {/* --- MODALES --- */}
+            {/*  MODALES  */}
 
             {/* 1. Modal Alerta Genérico (Success, Error, Warning) */}
             <ModalAlert

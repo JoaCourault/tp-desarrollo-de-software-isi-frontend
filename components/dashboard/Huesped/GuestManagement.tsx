@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { HuespedDTO } from "@/src/dto/Huesped/Huesped.dto";
 
-// IMPORTAMOS LOS COMPONENTES MODULARIZADOS
 import { BuscarHuespedForm } from "./components/BuscarHuespedForm";
 import { AltaHuespedForm } from "./components/AltaHuespedForm";
 import { EditGuestForm } from "./components/EditGuestForm";

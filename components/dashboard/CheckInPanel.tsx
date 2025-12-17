@@ -43,7 +43,7 @@ import {
 
 import { TIPOS_HABITACION } from "@/src/constants/tiposHabitacion";
 
-// --- TYPES LOCALES ---
+//  TYPES LOCALES
 interface Huesped {
     idHuesped: string;
     nombre: string;
@@ -62,7 +62,7 @@ interface SeleccionCheckIn {
     huespedes: Huesped[];
 }
 
-// --- UTILIDADES ---
+//  UTILIDADES
 const getTodayString = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -89,7 +89,7 @@ const formatearFecha = (fechaStr: string) => {
     }).format(date);
 };
 
-// --- COMPONENTE PRINCIPAL ---
+//  COMPONENTE PRINCIPAL
 export default function CheckInPanel() {
     // ESTADOS FLUJO
     const [paso, setPaso] = useState<"GRILLA" | "HUESPEDES">("GRILLA");
@@ -112,7 +112,7 @@ export default function CheckInPanel() {
     const [selecciones, setSelecciones] = useState<SeleccionCheckIn[]>([]);
     const [titularGlobal, setTitularGlobal] = useState<Huesped | null>(null);
 
-    // UI & MODALES (Lógica)
+    // UI & MODALES (Logica)
     const [habitacionActivaIndex, setHabitacionActivaIndex] = useState<number>(0);
     const [modalConflicto, setModalConflicto] = useState(false);
     const [conflictDetails, setConflictDetails] = useState<DisponibilidadDia[]>([]);
@@ -150,12 +150,12 @@ export default function CheckInPanel() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
-    // --- HELPER ALERTAS ---
+    //  HELPER ALERTAS
     const triggerAlert = (type: 'info' | 'warning' | 'error' | 'success', title: string, msg: string) => {
         setModalAlert({ open: true, type, title, msg });
     };
 
-    // --- LOGICA DE GRILLA ---
+    //  LOGICA DE GRILLA
     const handleBuscarDisponibilidad = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (desde !== getTodayString()) {
@@ -298,7 +298,7 @@ export default function CheckInPanel() {
         if (!searched) realizarBusquedaGrilla();
     };
 
-    // --- LÓGICA DE HUÉSPEDES ---
+    //  LOGICA DE HUÉSPEDES
     const buscarHuesped = async () => {
         try {
             // Preparamos payload con el NUEVO FILTRO DE TIPO DOC
@@ -374,16 +374,16 @@ export default function CheckInPanel() {
         }
     };
 
-    // --- PROCESAMIENTO FINAL ---
+    //  PROCESAMIENTO FINAL
 
-    // Paso 1: Validación Previa
+    // Paso 1: Validacion Previa
     const iniciarProcesoGuardado = () => {
         if (!titularGlobal) {
             triggerAlert("warning", "Falta Titular", "Debe seleccionar un Titular responsable para el Check-In.");
             return;
         }
 
-        // VALIDACIÓN: Verificar si hay habitaciones vacías
+        // VALIDACION: Verificar si hay habitaciones vacías
         const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
 
         if (habitacionesVacias.length > 0) {
@@ -458,7 +458,7 @@ export default function CheckInPanel() {
         }
     };
 
-    // --- NUEVO FLUJO POST-EXITO ---
+    //  NUEVO FLUJO POST-EXITO
     const handleCargarOtra = () => {
         setSelecciones([]);
         setTitularGlobal(null);
@@ -532,7 +532,7 @@ export default function CheckInPanel() {
             {/* CONTENIDO PRINCIPAL */}
             <div className="flex flex-col lg:flex-row gap-6">
 
-                {/* --- MODO GRILLA --- */}
+                {/*  MODO GRILLA  */}
                 {paso === "GRILLA" && (
                     <>
                         <div className="flex-1 space-y-4">
@@ -560,7 +560,7 @@ export default function CheckInPanel() {
                         {/* SIDEBAR DE GRILLA */}
                         {searched && gridData.length > 0 && (
                             <aside className="w-full lg:w-80 shrink-0 space-y-4 sticky top-6 animate-in slide-in-from-right duration-500">
-                                {/* Panel Selección Actual */}
+                                {/* Panel Seleccion Actual */}
                                 <Card className={`border-2 transition-all shadow-md ${tempSelect.roomId ? "border-blue-400 bg-blue-50/50" : "border-gray-100 bg-gray-50 opacity-80"}`}>
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-sm font-bold uppercase text-gray-500 flex items-center gap-2">
@@ -628,7 +628,7 @@ export default function CheckInPanel() {
                                     )}
                                 </Card>
 
-                                {/* BOTÓN CANCELAR AGREGADO AQUÍ */}
+                                {/* BOToN CANCELAR AGREGADO AQUÍ */}
                                 <Button
                                     variant="outline"
                                     className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-colors h-10 mt-2"
@@ -643,13 +643,13 @@ export default function CheckInPanel() {
                     </>
                 )}
 
-                {/* --- MODO HUÉSPEDES --- */}
+                {/*  MODO HUÉSPEDES  */}
                 {paso === "HUESPEDES" && (
                     <div className="w-full flex flex-col lg:flex-row gap-6 h-[calc(100vh-200px)] animate-in fade-in">
                         {/* IZQUIERDA: LISTA HABITACIONES Y TITULAR */}
                         <Card className="w-full lg:w-1/3 flex flex-col border-green-200 shadow-md h-full">
 
-                            {/* SECCIÓN TITULAR */}
+                            {/* SECCIoN TITULAR */}
                             <div className="p-4 bg-green-50/80 border-b border-green-100">
                                 <div className="text-xs font-bold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <UserCheck className="h-4 w-4" /> Titular Responsable
@@ -720,7 +720,7 @@ export default function CheckInPanel() {
                                     )}
                                 </div>
 
-                                {/* DERECHA - BOTONES DE ACCIÓN PRINCIPAL */}
+                                {/* DERECHA - BOTONES DE ACCIoN PRINCIPAL */}
                                 <div className="flex gap-2">
                                     <Button
                                         className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
@@ -753,7 +753,7 @@ export default function CheckInPanel() {
                             </CardHeader>
                             <div className="px-6 pb-4">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 items-end">
-                                    {/* --- CAMPOS DE BÚSQUEDA --- */}
+                                    {/*  CAMPOS DE BÚSQUEDA  */}
                                     <div>
                                         <Input id="input-apellido" placeholder="Apellido" value={searchApellido} onChange={(e) => setSearchApellido(e.target.value.toUpperCase())} />
                                     </div>
@@ -761,7 +761,7 @@ export default function CheckInPanel() {
                                         <Input placeholder="Nombre" value={searchNombre} onChange={(e) => setSearchNombre(e.target.value.toUpperCase())} />
                                     </div>
 
-                                    {/* --- NUEVO FILTRO TIPO DOC --- */}
+                                    {/*  NUEVO FILTRO TIPO DOC  */}
                                     <div>
                                         <select
                                             className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -825,7 +825,7 @@ export default function CheckInPanel() {
                 )}
             </div>
 
-            {/* --- MODALES --- */}
+            {/*  MODALES  */}
 
             <ModalAlert
                 open={modalAlert.open}
@@ -839,13 +839,13 @@ export default function CheckInPanel() {
             {/* 1. Modal de CONFLICTO (Grilla) */}
             <Dialog open={modalConflicto} onOpenChange={setModalConflicto}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>Conflicto Reserva</DialogTitle><DialogDescription>Días reservados en la selección.</DialogDescription></DialogHeader>
+                    <DialogHeader><DialogTitle>Conflicto Reserva</DialogTitle><DialogDescription>Días reservados en la seleccion.</DialogDescription></DialogHeader>
                     <div className="bg-yellow-50 p-2 text-sm rounded max-h-32 overflow-auto">{conflictDetails.map((c, i) => <div key={i}>{formatearFecha(c.fecha)} - Reservada</div>)}</div>
                     <DialogFooter><Button variant="outline" onClick={() => setModalConflicto(false)}>VOLVER</Button><Button className="bg-yellow-600 text-white" onClick={() => confirmarAgregar(true)}>OCUPAR IGUAL</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* 2. Modal SELECCIÓN PENDIENTE */}
+            {/* 2. Modal SELECCIoN PENDIENTE */}
             <Dialog open={alertPendingOpen} onOpenChange={setAlertPendingOpen}>
                 <DialogContent>
                     <DialogHeader><DialogTitle>Selección Pendiente</DialogTitle><DialogDescription>Tienes una habitación marcada en la grilla sin agregar a la lista.</DialogDescription></DialogHeader>

@@ -12,7 +12,7 @@ import { EstadiaDetalleDTO, PayerDTO, ItemFacturable, PersonaFisicaDTO, PersonaJ
 import { generarFacturaPDF } from "@/src/utils/pdfGenerator";
 import { Search, PlusCircle, AlertCircle, Loader2, RefreshCcw, Users as UsersIcon, Check as CheckIcon, FileText, Clock } from "lucide-react";
 
-// --- IMPORTS ---
+//  IMPORTS
 import { estadiaApi } from "@/src/api/estadia.api";
 import { responsableApi } from "@/src/api/responsable.api";
 import { facturacionApi } from "@/src/api/facturacion.api";
@@ -20,7 +20,7 @@ import { facturacionApi } from "@/src/api/facturacion.api";
 export function CheckOutPanel() {
     const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
 
-    // --- Campos de Entrada ---
+    //  Campos de Entrada
     const [searchRoom, setSearchRoom] = useState("");
     const [searchTime, setSearchTime] = useState("10:00"); // Por defecto 10:00 según enunciado
 
@@ -37,7 +37,7 @@ export function CheckOutPanel() {
     const roomInputRef = useRef<HTMLInputElement>(null);
     const timeInputRef = useRef<HTMLInputElement>(null);
 
-    // --- MODALES ---
+    //  MODALES
     const [modalAlert, setModalAlert] = useState<{ open: boolean; type: 'info'|'warning'|'error'|'success'; title: string; msg: string }>({ open: false, type: 'info', title: '', msg: '' });
     const [confirmFacturaOpen, setConfirmFacturaOpen] = useState(false);
     const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
@@ -46,7 +46,7 @@ export function CheckOutPanel() {
         setModalAlert({ open: true, type, title, msg });
     };
 
-    // --- RESET ---
+    //  RESET
     const handleReset = () => {
         setStep(0);
         setSearchRoom("");
@@ -57,7 +57,7 @@ export function CheckOutPanel() {
         setItemsToBill([]);
     };
 
-    // ---  BUSCAR ---
+    //   BUSCAR
     const handleSearchHabitacion = async () => {
         // Validaciones explícitas
         let errores = [];
@@ -95,7 +95,7 @@ export function CheckOutPanel() {
         }
     };
 
-    // --- PASO DE RESPONSABLE ---
+    //  PASO DE RESPONSABLE
     const handleSearchCuit = async () => {
         if (!searchCuit) {
             triggerAlert("warning", "Dato faltante", "Ingrese un CUIT para buscar.");
@@ -117,7 +117,7 @@ export function CheckOutPanel() {
         }
     };
 
-    // --- LÓGICA DE ITEMS ---
+    //  LÓGICA DE ITEMS
     const toggleItem = (id: string) => {
         setItemsToBill(prev => prev.map(item =>
             item.id === id ? { ...item, seleccionado: !item.seleccionado } : item
@@ -148,7 +148,7 @@ export function CheckOutPanel() {
             return "B"; // Por defecto Consumidor Final o si falta CUIT
         };
 
-    // --- CONFIRMACIÓN Y FACTURACIÓN ---
+    //  CONFIRMACIÓN Y FACTURACIÓN
     const handlePreFacturar = () => {
         if (!estadiaData || !selectedPayer) return;
 
@@ -203,7 +203,7 @@ export function CheckOutPanel() {
         }
     };
 
-    // --- LÓGICA DE CANCELAR (Global) ---
+    //  LÓGICA DE CANCELAR (Global)
     const handleCancelClick = () => {
         if (step === 0) {
             // Si no empezamos, solo limpiamos
@@ -233,7 +233,7 @@ export function CheckOutPanel() {
                 <CardContent className="pt-8 px-8 min-h-[400px]">
                     <div className="space-y-6">
 
-                        {/* --- PASO 0: BÚSQUEDA --- */}
+                        {/*  PASO 0: BÚSQUEDA  */}
                         {step === 0 && (
                             <div className="max-w-xl mx-auto space-y-6 mt-8">
                                 <div className="grid grid-cols-2 gap-6 items-end">
@@ -277,7 +277,7 @@ export function CheckOutPanel() {
                             </div>
                         )}
 
-                        {/* --- PASO 1: RESPONSABLE --- */}
+                        {/*  PASO 1: RESPONSABLE  */}
                         {step === 1 && (
                             <div className="max-w-4xl mx-auto">
                                 {showCreateForm ? (
@@ -357,7 +357,7 @@ export function CheckOutPanel() {
                             </div>
                         )}
 
-                        {/* --- PASO 2: DETALLE Y CONFIRMACIÓN --- */}
+                        {/*  PASO 2: DETALLE Y CONFIRMACIÓN  */}
                         {step === 2 && selectedPayer && (
                             <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in">
                                 {/* Cabecera Responsable */}
@@ -430,7 +430,7 @@ export function CheckOutPanel() {
                             </div>
                         )}
 
-                        {/* --- PASO 3: ÉXITO --- */}
+                        {/*  PASO 3: ÉXITO  */}
                         {step === 3 && (
                             <div className="flex flex-col items-center justify-center py-16 animate-in zoom-in-95 duration-500">
                                 <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
@@ -450,7 +450,7 @@ export function CheckOutPanel() {
                 </CardContent>
             </Card>
 
-            {/* --- MODALES EMERGENTES --- */}
+            {/*  MODALES EMERGENTES  */}
 
             {/* 1. Alerta Genérica */}
             <ModalAlert

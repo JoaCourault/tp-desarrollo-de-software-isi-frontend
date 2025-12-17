@@ -24,10 +24,9 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-// IMPORTANTE: Ajusta la ruta si tu ModalAlert está en otra carpeta
 import ModalAlert from "@/components/modalAlert/modalAlert";
 
-// --- TIPOS ---
+//  TIPOS 
 interface ReservaListadoDTO {
     idReserva: string;
     apellidoHuesped: string;
@@ -38,12 +37,11 @@ interface ReservaListadoDTO {
     fechaEgreso: string;
 }
 
-// --- UTILIDADES ---
+//  UTILIDADES 
 const formatearFecha = (fechaStr: string) => {
     if (!fechaStr) return "-";
 
-    // Intentamos extraer día, mes y año usando regex para mayor seguridad
-    // Busca grupos de dígitos en la cadena (ej: 16, 12, 2025)
+    // Intentamos extraer dia, mes y año usando regex para mayor seguridad
     const match = fechaStr.match(/(\d{1,2}).*?(\d{1,2}).*?(\d{4})/);
 
     if (match) {
@@ -53,12 +51,12 @@ const formatearFecha = (fechaStr: string) => {
         return `${d}/${m}/${año}`;
     }
 
-    // Si el regex falla, intentamos el split básico por si el formato cambia
+    // Si el regex falla, intentamos el split basico por si el formato cambia
     return fechaStr.split('T')[0].split('-').reverse().join('/');
 };
 
 export default function CancelReservationPanel() {
-    // --- ESTADOS ---
+    //  ESTADOS 
     const [apellido, setApellido] = useState("");
     const [nombre, setNombre] = useState("");
 
@@ -68,11 +66,11 @@ export default function CancelReservationPanel() {
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
 
-    // --- ESTADOS DE MODALES ---
+    //  ESTADOS DE MODALES 
     const [modalConfirmOpen, setModalConfirmOpen] = useState(false);
     const [modalExitoOpen, setModalExitoOpen] = useState(false);
 
-    // --- ESTADO PARA ALERTAS GENÉRICAS (Reemplazo de window.alert) ---
+    // ESTADO PARA ALERTAS GENERICAS 
     const [modalAlert, setModalAlert] = useState<{ open: boolean; type: 'info'|'warning'|'error'|'success'; title: string; msg: string }>({
         open: false, type: 'info', title: '', msg: ''
     });
@@ -81,7 +79,7 @@ export default function CancelReservationPanel() {
         setModalAlert({ open: true, type, title, msg });
     };
 
-    // --- LÓGICA DE BÚSQUEDA ---
+    //  LOGICA DE BÚSQUEDA
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -107,7 +105,7 @@ export default function CancelReservationPanel() {
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
                 if (res.status === 404) {
-                    setReservas([]); // No hay resultados, array vacío
+                    setReservas([]); // No hay resultados, array vacio
                 } else {
                     triggerAlert("error", "Error de Búsqueda", errorData.mensaje || "Ocurrió un error al buscar reservas.");
                 }
@@ -125,7 +123,7 @@ export default function CancelReservationPanel() {
         }
     };
 
-    // --- LÓGICA DE SELECCIÓN ---
+    //  LOGICA DE SELECCIÓN
     const toggleSelection = (id: string) => {
         setSelectedIds(prev => {
             if (prev.includes(id)) return prev.filter(item => item !== id);
@@ -141,7 +139,7 @@ export default function CancelReservationPanel() {
         }
     };
 
-    // --- LÓGICA DE CANCELACIÓN ---
+    //  LOGICA DE CANCELACION
     const handleConfirmarCancelacion = async () => {
         if (selectedIds.length === 0) return;
 
@@ -175,7 +173,7 @@ export default function CancelReservationPanel() {
         }
     };
 
-    // --- RENDER ---
+    //  RENDER 
     return (
         <div className="container mx-auto max-w-7xl p-8 space-y-6 min-h-screen bg-gray-50/30">
 
@@ -337,7 +335,7 @@ export default function CancelReservationPanel() {
                 </div>
             )}
 
-            {/* --- MODALES --- */}
+            {/*  MODALES  */}
 
             {/* 1. Modal Alerta Genérico */}
             <ModalAlert
@@ -349,7 +347,7 @@ export default function CancelReservationPanel() {
                 okText="Aceptar"
             />
 
-            {/* 2. Confirmación de Cancelación */}
+            {/* 2. Confirmacion de Cancelacion */}
             <Dialog open={modalConfirmOpen} onOpenChange={setModalConfirmOpen}>
                 <DialogContent className="border-red-200 bg-red-50 sm:max-w-lg">
                     <DialogHeader>
