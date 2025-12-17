@@ -43,7 +43,7 @@ import {
 
 import { TIPOS_HABITACION } from "@/src/constants/tiposHabitacion";
 
-//  TYPES LOCALES
+// --- TYPES LOCALES ---
 interface Huesped {
     idHuesped: string;
     nombre: string;
@@ -60,9 +60,10 @@ interface SeleccionCheckIn {
     numero: number;
     esOcuparIgual: boolean;
     huespedes: Huesped[];
+    idReserva?: string; // <--- CORRECCIÓN 1: Campo agregado para guardar el ID de reserva
 }
 
-//  UTILIDADES
+// --- UTILIDADES ---
 const getTodayString = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -89,7 +90,7 @@ const formatearFecha = (fechaStr: string) => {
     }).format(date);
 };
 
-//  COMPONENTE PRINCIPAL
+// --- COMPONENTE PRINCIPAL ---
 export default function CheckInPanel() {
     // ESTADOS FLUJO
     const [paso, setPaso] = useState<"GRILLA" | "HUESPEDES">("GRILLA");
@@ -112,7 +113,7 @@ export default function CheckInPanel() {
     const [selecciones, setSelecciones] = useState<SeleccionCheckIn[]>([]);
     const [titularGlobal, setTitularGlobal] = useState<Huesped | null>(null);
 
-    // UI & MODALES (Logica)
+    // UI & MODALES (Lógica)
     const [habitacionActivaIndex, setHabitacionActivaIndex] = useState<number>(0);
     const [modalConflicto, setModalConflicto] = useState(false);
     const [conflictDetails, setConflictDetails] = useState<DisponibilidadDia[]>([]);
@@ -150,12 +151,12 @@ export default function CheckInPanel() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
-    //  HELPER ALERTAS
+    // --- HELPER ALERTAS ---
     const triggerAlert = (type: 'info' | 'warning' | 'error' | 'success', title: string, msg: string) => {
         setModalAlert({ open: true, type, title, msg });
     };
 
-    //  LOGICA DE GRILLA
+    // --- LOGICA DE GRILLA ---
     const handleBuscarDisponibilidad = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (desde !== getTodayString()) {
@@ -212,24 +213,30 @@ export default function CheckInPanel() {
         }
     };
 
+    // --- LÓGICA DE SELECCIÓN ---
     const intentarAgregarSeleccion = () => {
         if (!tempSelect.start || !tempSelect.end || !tempSelect.roomId) return;
+
         const hab = gridData.find((h) => h.habitacion.id_habitacion === tempSelect.roomId);
         if (!hab) return;
 
-        const start = new Date(tempSelect.start);
-        const end = new Date(tempSelect.end);
+        const start = new Date(tempSelect.start + "T00:00:00");
+        const end = new Date(tempSelect.end + "T00:00:00");
+
+        // Lógica de fechas (excluye el día de salida)
         const diasRango = hab.disponibilidad.filter((d) => {
-            const current = new Date(d.fecha);
-            return current >= start && current <= end;
+            const current = new Date(d.fecha + "T00:00:00");
+            return current >= start && current < end;
         });
 
+        // 1. Validar Bloqueos
         const tieneBloqueos = diasRango.some((d) => d.estado === "OCUPADA" || d.estado === "MANTENIMIENTO");
         if (tieneBloqueos) {
             triggerAlert("warning", "Selección Inválida", "El rango seleccionado contiene días bloqueados.");
             return;
         }
 
+        // 2. Validar Reservas
         const tieneReservas = diasRango.some((d) => d.estado === "RESERVADA");
         const tieneDisponibles = diasRango.some((d) => d.estado === "DISPONIBLE");
 
@@ -238,16 +245,31 @@ export default function CheckInPanel() {
             setModalConflicto(true);
             return;
         }
+
         if (!tieneDisponibles && tieneReservas) {
             confirmarAgregar(true);
             return;
         }
+
         confirmarAgregar(false);
     };
 
+    // --- CORRECCIÓN 2: Capturar ID Reserva aquí ---
     const confirmarAgregar = (esOcuparIgual: boolean) => {
         const hab = gridData.find((h) => h.habitacion.id_habitacion === tempSelect.roomId);
         if (!hab) return;
+
+        // Recuperamos el ID de reserva si existe en el rango seleccionado
+        const start = new Date(tempSelect.start! + "T00:00:00");
+        const end = new Date(tempSelect.end! + "T00:00:00");
+        const diasRango = hab.disponibilidad.filter((d) => {
+            const current = new Date(d.fecha + "T00:00:00");
+            return current >= start && current < end;
+        });
+
+        // Buscamos si hay algún ID de reserva en estos días
+        const diaConReserva = diasRango.find(d => d.idReserva);
+        const idReservaEncontrado = diaConReserva ? diaConReserva.idReserva : undefined;
 
         setSelecciones((prev) => [
             ...prev,
@@ -257,7 +279,8 @@ export default function CheckInPanel() {
                 fechaHasta: tempSelect.end!,
                 numero: hab.habitacion.numero,
                 esOcuparIgual: esOcuparIgual,
-                huespedes: []
+                huespedes: [],
+                idReserva: idReservaEncontrado // Guardamos el ID
             }
         ]);
         setTempSelect({ start: null, end: null, roomId: null });
@@ -298,10 +321,9 @@ export default function CheckInPanel() {
         if (!searched) realizarBusquedaGrilla();
     };
 
-    //  LOGICA DE HUÉSPEDES
+    // --- LÓGICA DE HUÉSPEDES ---
     const buscarHuesped = async () => {
         try {
-            // Preparamos payload con el NUEVO FILTRO DE TIPO DOC
             const payload = {
                 huesped: {
                     nombre: searchNombre || null,
@@ -318,7 +340,6 @@ export default function CheckInPanel() {
             });
             const data = await res.json();
 
-            // ORDENAMIENTO ALFABÉTICO (A-Z Apellido)
             const ordenados = (data.huespedesEncontrados || []).sort((a: Huesped, b: Huesped) =>
                 a.apellido.localeCompare(b.apellido, 'es', { sensitivity: 'base' })
             );
@@ -334,7 +355,7 @@ export default function CheckInPanel() {
         setSearchApellido("");
         setSearchNombre("");
         setSearchDocumento("");
-        setSearchTipoDoc(""); // Limpiar también el combo
+        setSearchTipoDoc("");
         setListaHuespedes([]);
         document.getElementById("input-apellido")?.focus();
     };
@@ -374,26 +395,23 @@ export default function CheckInPanel() {
         }
     };
 
-    //  PROCESAMIENTO FINAL
+    // --- PROCESAMIENTO FINAL ---
 
-    // Paso 1: Validacion Previa
+    // Paso 1: Validación Previa
     const iniciarProcesoGuardado = () => {
         if (!titularGlobal) {
             triggerAlert("warning", "Falta Titular", "Debe seleccionar un Titular responsable para el Check-In.");
             return;
         }
 
-        // VALIDACION: Verificar si hay habitaciones vacías
         const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
 
         if (habitacionesVacias.length > 0) {
-            // Obtener los números de las habitaciones vacías para mostrar en la alerta
             const numeros = habitacionesVacias.map(h => h.numero).join(", ");
             triggerAlert("error", "Faltan Huéspedes", `No se puede guardar. Las siguientes habitaciones no tienen huéspedes asignados: ${numeros}.`);
-            return; // DETIENE EL PROCESO
+            return;
         }
 
-        // Si todo ok, guardamos directo
         ejecutarCheckInBackend();
     };
 
@@ -401,10 +419,8 @@ export default function CheckInPanel() {
     const ejecutarCheckInBackend = async () => {
         setLoading(true);
 
-        // Aplanar lista de Habitaciones
         const listaIdsHabitaciones = selecciones.map(sel => sel.idHabitacion);
 
-        // Aplanar lista de Huéspedes
         const setHuespedes = new Set<string>();
         setHuespedes.add(titularGlobal!.idHuesped);
         selecciones.forEach(sel => {
@@ -414,7 +430,6 @@ export default function CheckInPanel() {
         });
         const listaIdsHuespedes = Array.from(setHuespedes);
 
-        // Calcular noches
         const fechaInicio = selecciones[0].fechaDesde;
         const fechaFin = selecciones[0].fechaHasta;
         const d1 = new Date(fechaInicio);
@@ -422,11 +437,15 @@ export default function CheckInPanel() {
         const diffTime = Math.abs(d2.getTime() - d1.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
+        // --- CORRECCIÓN 3: Extraer ID de Reserva de las selecciones ---
+        // Buscamos si alguna de las selecciones tiene un ID de reserva asociado
+        const reservaDetectada = selecciones.find(s => s.idReserva)?.idReserva || null;
+
         const payload = {
             checkIn: fechaInicio,
             checkOut: fechaFin,
             cantNoches: diffDays,
-            idReserva: null, // Walk-in
+            idReserva: reservaDetectada, // <-- Aquí enviamos el ID encontrado (o null)
             idsHabitaciones: listaIdsHabitaciones,
             idsHuespedes: listaIdsHuespedes,
             idHuespedTitular: titularGlobal!.idHuesped
@@ -458,7 +477,7 @@ export default function CheckInPanel() {
         }
     };
 
-    //  NUEVO FLUJO POST-EXITO
+    // --- NUEVO FLUJO POST-EXITO ---
     const handleCargarOtra = () => {
         setSelecciones([]);
         setTitularGlobal(null);
