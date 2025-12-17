@@ -34,21 +34,53 @@ export function BuscarHuespedForm({
     const [searching, setSearching] = useState(false);
     const [localFilters, setLocalFilters] = useState(filters);
 
+    // --- VALIDACIÓN EN TIEMPO REAL ---
     const handleLocalChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setLocalFilters({ ...localFilters, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+
+        // VALIDACIÓN SOLO NÚMEROS (Para el campo numDoc)
+        if (name === "numDoc") {
+            // Si no está vacío y contiene algo que NO sea número, se ignora
+            if (value !== "" && !/^\d+$/.test(value)) {
+                return;
+            }
+        }
+
+        // VALIDACIÓN SOLO LETRAS Y ESPACIOS (Para Nombre y Apellido)
+        if (name === "nombre" || name === "apellido") {
+            // Si el valor comienza con un espacio, lo evitamos
+            if (value.startsWith(" ")) return;
+
+            // RegEx: Solo permite letras y espacios.
+            if (!/^[a-zA-Z\u00C0-\u017F\s]*$/.test(value)) {
+                return;
+            }
+
+        }
+
+        setLocalFilters({ ...localFilters, [name]: value });
     };
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         setSearching(true);
-        setFilters(localFilters);
+        
+        // Esto elimina los espacios sobrantes al inicio y AL FINAL automáticamente.
+        const filtrosLimpios = {
+            ...localFilters,
+            nombre: localFilters.nombre?.trim(),
+            apellido: localFilters.apellido?.trim(),
+            numDoc: localFilters.numDoc?.trim()
+        };
+
+        setFilters(filtrosLimpios); // Actualizamos el estado global con los datos limpios
 
         const payload: BuscarHuespedRequestDTO = {
             huesped: {
-                nombre: localFilters.nombre || null,
-                apellido: localFilters.apellido || null,
-                tipoDoc: localFilters.tipoDocumento ? { tipoDocumento: localFilters.tipoDocumento } : null,
-                numDoc: localFilters.numDoc || null,
+                nombre: filtrosLimpios.nombre || null,
+                apellido: filtrosLimpios.apellido || null,
+                tipoDoc: filtrosLimpios.tipoDocumento ? { tipoDocumento: filtrosLimpios.tipoDocumento } : null,
+                numDoc: filtrosLimpios.numDoc || null,
             },
         };
 
@@ -85,11 +117,25 @@ export function BuscarHuespedForm({
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-gray-600">Nombre</label>
-                            <Input name="nombre" value={localFilters.nombre} onChange={handleLocalChange} placeholder="Ej: Juan" className="bg-white" />
+                            <Input
+                                name="nombre"
+                                value={localFilters.nombre}
+                                onChange={handleLocalChange}
+                                placeholder="Ej: Juan"
+                                className="bg-white"
+                                autoComplete="off"
+                            />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-gray-600">Apellido</label>
-                            <Input name="apellido" value={localFilters.apellido} onChange={handleLocalChange} placeholder="Ej: Perez" className="bg-white" />
+                            <Input
+                                name="apellido"
+                                value={localFilters.apellido}
+                                onChange={handleLocalChange}
+                                placeholder="Ej: Perez"
+                                className="bg-white"
+                                autoComplete="off"
+                            />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-gray-600">Tipo Doc.</label>
@@ -104,7 +150,14 @@ export function BuscarHuespedForm({
                         <div className="flex gap-2">
                             <div className="space-y-1.5 w-full">
                                 <label className="text-xs font-medium text-gray-600">Número</label>
-                                <Input name="numDoc" value={localFilters.numDoc} onChange={handleLocalChange} placeholder="123..." className="bg-white" />
+                                <Input
+                                    name="numDoc"
+                                    value={localFilters.numDoc}
+                                    onChange={handleLocalChange}
+                                    placeholder="123..."
+                                    className="bg-white"
+                                    autoComplete="off"
+                                />
                             </div>
                             <Button type="submit" className="bg-rose-900 hover:bg-rose-800 text-white mb-0.5" disabled={searching}>
                                 {searching ? "..." : <SearchIcon className="h-4 w-4" />}

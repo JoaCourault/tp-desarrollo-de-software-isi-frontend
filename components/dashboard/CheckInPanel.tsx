@@ -540,7 +540,6 @@ export default function CheckInPanel() {
                 {/* MODO GRILLA  */}
                 {paso === "GRILLA" && (
                     <>
-                        {/* AQUI ESTA LA MAGIA: min-w-0 evita que el flex child empuje el ancho */}
                         <div className="flex-1 space-y-4 min-w-0">
                             {searched ? (
                                 <GrillaDisponibilidad
