@@ -167,10 +167,28 @@ export function GrillaDisponibilidad({
                                 content = "Ocupada";
                             }
                             else if (dia.estado === "RESERVADA") {
+                                // Configuración Base
                                 bg = "bg-yellow-50 hover:bg-yellow-100";
                                 txtColor = "text-yellow-600 font-medium";
                                 content = "Reservada";
                                 cursor = "cursor-pointer";
+
+                                if (dia.esSalida) {
+                                    // CASO A: Salida de Estadía (Checkout) -> Entrada Reserva
+                                    if (dia.tipoSalida === "ESTADIA") {
+                                        bg = "bg-[linear-gradient(to_right,#fef2f2_0%,#fef2f2_45%,#fefce8_100%)] hover:opacity-90";
+                                        txtColor = "text-orange-600 font-medium";
+                                        content = "Checkout";
+                                    }
+                                    // CASO B: Salida de Reserva -> Entrada Reserva (Res/Res)
+                                    else if (dia.tipoSalida === "RESERVA") {
+                                        // Usamos un degradado de Amarillo Claro a Amarillo un poco más oscuro
+                                        // para crear una sutil "línea" visual de división.
+                                        bg = "bg-[linear-gradient(to_right,#fefce8_0%,#fefce8_45%,#fde047_100%)] hover:opacity-90";
+                                        txtColor = "text-yellow-700 font-bold";
+                                        content = "Res/Res";
+                                    }
+                                }
                             }
                             else if (dia.estado === "MANTENIMIENTO") {
                                 bg = "bg-gray-100";
@@ -184,20 +202,17 @@ export function GrillaDisponibilidad({
                                 content = "Libre";
                                 cursor = "cursor-pointer";
 
-                                // REGLA 2 y 3: FIN DE ESTADÍA O RESERVA (Sin Overlap)
+                                // REGLA 2: Salidas sin solapamiento
                                 if (dia.esSalida) {
                                     if (dia.tipoSalida === "ESTADIA") {
-                                        // Degrade ROJO-50 a VERDE-50
                                         bg = "bg-[linear-gradient(to_right,#fef2f2_0%,#fef2f2_45%,#f0fdf4_100%)] hover:opacity-90";
                                         txtColor = "text-red-400 font-medium";
                                         content = "Checkout";
                                     } else if (dia.tipoSalida === "RESERVA") {
-                                        // Degrade AMARILLO-50 a VERDE-50
                                         bg = "bg-[linear-gradient(to_right,#fefce8_0%,#fefce8_45%,#f0fdf4_100%)] hover:opacity-90";
                                         txtColor = "text-yellow-600 font-medium";
-                                        content = "Fin Reserva";
+                                        content = "Res/Lib";
                                     } else {
-                                        // Fallback suave
                                         bg = "bg-gradient-to-br from-yellow-50 via-white to-green-50";
                                         txtColor = "text-yellow-600 font-semibold";
                                         content = "Salida";
