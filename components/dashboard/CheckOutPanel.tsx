@@ -145,13 +145,13 @@ export function CheckOutPanel() {
 
             // 1. Normalizamos el texto
             const condicion = (
-                (selectedPayer.tipo==="PERSONA_FISICA" ?
+                ((selectedPayer.responsableDePagoGenerado.tipo==="PERSONA_FISICA" || selectedPayer.tipo==="PERSONA_FISICA") ?
                     selectedPayer.huesped?.posicionIva :
                     "RESPONSABLE INSCRIPTO") || ""
             ).toUpperCase().trim();
 
             // 2. Verificamos si tiene CUIT
-            const tieneCuit = selectedPayer.cuit && selectedPayer.cuit.length > 5; // Validación mínima de largo
+            const tieneCuit = selectedPayer.responsableDePagoGenerado.cuit && selectedPayer.responsableDePagoGenerado.cuit.length > 5 || selectedPayer.cuit && selectedPayer.cuit.length > 5; // Validación mínima de largo
 
             // 3. Comparamos
             if (condicion.includes("RESPONSABLE INSCRIPTO") && tieneCuit) {
@@ -186,7 +186,7 @@ export function CheckOutPanel() {
         try {
             const resultado = await facturacionApi.generar({
                 idEstadia: estadiaData!.idEstadia,
-                idResponsable: selectedPayer.idResponsableDePago || selectedPayer.idResponsable,
+                idResponsable: selectedPayer.responsableDePagoGenerado.idResponsableDePago|| selectedPayer.idResponsableDePago || selectedPayer.idResponsable,
                 items: itemsSeleccionados.map(i => ({
                     idServicio: i.id,
                     descripcion: i.descripcion,
@@ -227,6 +227,9 @@ export function CheckOutPanel() {
         }
     };
 
+    useEffect(() => {
+        console.log("El que paga: ", selectedPayer);
+    }, [selectedPayer])
     return (
         <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Card className="shadow-md border-rose-100 bg-white">
@@ -348,7 +351,7 @@ export function CheckOutPanel() {
                                                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800 font-semibold flex justify-between items-center shadow-sm">
                                                     <span className="flex flex-col">
                                                         <span className="text-xs uppercase text-green-600 mb-1">Tercero Seleccionado</span>
-                                                        <span className="text-lg">{selectedPayer.tipo=="PERSONA_JURIDICA" ? selectedPayer.razonSocial : `${selectedPayer?.huesped?.nombre} ${selectedPayer?.huesped?.apellido}`}</span>
+                                                        <span className="text-lg">{selectedPayer.responsableDePagoGenerado.razonSocial || selectedPayer.razonSocial || `${selectedPayer?.huesped?.nombre} ${selectedPayer?.huesped?.apellido}`}</span>
                                                     </span>
                                                     <CheckIcon className="text-green-600" />
                                                 </div>
@@ -378,12 +381,15 @@ export function CheckOutPanel() {
                                     <div>
                                         <p className="text-gray-500 font-bold uppercase tracking-wider text-xs mb-1">Responsable de Pago</p>
                                         <p className="text-xl font-bold text-gray-900">
-                                            {selectedPayer.tipo==="PERSONA_JURIDICA" ? (selectedPayer as PersonaJuridicaDTO).razonSocial : `${(selectedPayer as PersonaFisicaDTO).nombre} ${(selectedPayer as PersonaFisicaDTO).apellido}`}
+                                            {(selectedPayer.responsableDePagoGenerado.tipo === "PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA")?
+                                                (selectedPayer.responsableDePagoGenerado.razonSocial || (selectedPayer as PersonaJuridicaDTO).razonSocial) : `${(selectedPayer as PersonaFisicaDTO).nombre} ${(selectedPayer as PersonaFisicaDTO).apellido}`}
                                         </p>
                                         <div className="text-sm text-gray-600 mt-1">
-                                            {selectedPayer.tipo==="PERSONA_JURIDICA"? `CUIT: ${(selectedPayer as PersonaJuridicaDTO).cuit}` : `DNI: ${(selectedPayer as PersonaFisicaDTO).dni}`}
+                                            {(selectedPayer.responsableDePagoGenerado.tipo==="PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA") ? `CUIT: ${selectedPayer.responsableDePagoGenerado.cuit || (selectedPayer as PersonaJuridicaDTO).cuit}` : `DNI: ${(selectedPayer as PersonaFisicaDTO).dni}`}
                                             <span className="mx-2">|</span>
-                                            <span className="font-semibold">{selectedPayer.huesped?.posicionIva}</span>
+                                            <span className="font-semibold">{
+                                                (selectedPayer.responsableDePagoGenerado.tipo==="PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA") ? "Responsable Inscripto" : `${(selectedPayer as PersonaFisicaDTO).posicionIva}`
+                                            }</span>
                                         </div>
                                     </div>
                                     <div className="text-right">
