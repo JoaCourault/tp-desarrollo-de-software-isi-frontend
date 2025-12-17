@@ -27,7 +27,7 @@ export function CheckOutPanel() {
     const [searchTime, setSearchTime] = useState("10:00"); // Por defecto 10:00 según enunciado
 
     const [estadiaData, setEstadiaData] = useState<EstadiaDetalleDTO | null>(null);
-    const [selectedPayer, setSelectedPayer] = useState<ResponsableDePago | null>(null);
+    const [selectedPayer, setSelectedPayer] = useState<any>(null);
     const [searchCuit, setSearchCuit] = useState("");
     const [itemsToBill, setItemsToBill] = useState<ItemFacturable[]>([]);
 
@@ -58,6 +58,10 @@ export function CheckOutPanel() {
         setShowCreateForm(false);
         setItemsToBill([]);
     };
+
+    useEffect(()=> {
+        console.log(selectedPayer)
+    }, [selectedPayer])
 
     //   BUSCAR
     const handleSearchHabitacion = async () => {
@@ -136,6 +140,7 @@ export function CheckOutPanel() {
 
     // Determinar tipo factura
     const determinarTipoFactura = () => {
+        console.log(selectedPayer)
             if (!selectedPayer) return "B";
 
             // 1. Normalizamos el texto
@@ -181,7 +186,7 @@ export function CheckOutPanel() {
         try {
             const resultado = await facturacionApi.generar({
                 idEstadia: estadiaData!.idEstadia,
-                idResponsable: selectedPayer!.idResponsableDePago!,
+                idResponsable: selectedPayer.idResponsableDePago || selectedPayer.idResponsable,
                 items: itemsSeleccionados.map(i => ({
                     idServicio: i.id,
                     descripcion: i.descripcion,
@@ -302,12 +307,12 @@ export function CheckOutPanel() {
                                                 <UsersIcon /> Ocupantes (Selección Rápida)
                                             </h4>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {estadiaData?.ocupantes?.map(occ => (
+                                                {estadiaData?.ocupantes?.map((occ: any) => (
                                                     <div
                                                         key={occ.idResponsable || occ.dni}
                                                         onClick={() => { setSelectedPayer(occ); setSearchError(""); }}
                                                         className={`p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center bg-white shadow-sm hover:shadow-md
-                                                            ${selectedPayer?.idResponsableDePago === occ.idResponsable ? 'border-rose-600 ring-2 ring-rose-600 ring-opacity-50' : 'hover:border-rose-300'}`}
+                                                            ${(selectedPayer?.idResponsableDePago === occ.idResponsable || selectedPayer?.idResponsable === occ.idResponsable) ? 'border-rose-600 ring-2 ring-rose-600 ring-opacity-50' : 'hover:border-rose-300'}`}
                                                     >
                                                         <div>
                                                             <span className="font-bold text-gray-800 block">{(occ as PersonaFisicaDTO).nombre} {(occ as PersonaFisicaDTO).apellido}</span>
