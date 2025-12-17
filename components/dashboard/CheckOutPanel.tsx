@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,8 @@ import { Search, PlusCircle, AlertCircle, Loader2, RefreshCcw, Users as UsersIco
 import { estadiaApi } from "@/src/api/estadia.api";
 import { responsableApi } from "@/src/api/responsable.api";
 import { facturacionApi } from "@/src/api/facturacion.api";
+import { ResponsableDePago } from "@/src/dto/ResponsableDePago/ResponsableDePago.dto";
+import { Console } from "console";
 
 export function CheckOutPanel() {
     const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
@@ -25,7 +27,7 @@ export function CheckOutPanel() {
     const [searchTime, setSearchTime] = useState("10:00"); // Por defecto 10:00 según enunciado
 
     const [estadiaData, setEstadiaData] = useState<EstadiaDetalleDTO | null>(null);
-    const [selectedPayer, setSelectedPayer] = useState<PayerDTO | null>(null);
+    const [selectedPayer, setSelectedPayer] = useState<ResponsableDePago | null>(null);
     const [searchCuit, setSearchCuit] = useState("");
     const [itemsToBill, setItemsToBill] = useState<ItemFacturable[]>([]);
 
@@ -104,14 +106,16 @@ export function CheckOutPanel() {
         setLoading(true);
         try {
             const found = await responsableApi.buscarPorCuit(searchCuit);
+            console.log("found: ", found)
             if (found) {
-                setSelectedPayer(found);
+                setSelectedPayer(found[0]);
             } else {
                 triggerAlert("info", "No encontrado", "No existe responsable con ese documento. Puede darlo de alta.");
                 setSelectedPayer(null);
             }
-        } catch (error) {
-            triggerAlert("error", "Error", "Error de conexión.");
+        } catch (error: any) {
+            if(error.message) triggerAlert("error", "Error", error.message);
+            else triggerAlert("error", "Error", "Error de conexión.");
         } finally {
             setLoading(false);
         }
@@ -135,7 +139,11 @@ export function CheckOutPanel() {
             if (!selectedPayer) return "B";
 
             // 1. Normalizamos el texto
-            const condicion = (selectedPayer.condicionIva || "").toUpperCase().trim();
+            const condicion = (
+                (selectedPayer.tipo==="PERSONA_FISICA" ?
+                    selectedPayer.huesped?.posicionIva :
+                    "RESPONSABLE INSCRIPTO") || ""
+            ).toUpperCase().trim();
 
             // 2. Verificamos si tiene CUIT
             const tieneCuit = selectedPayer.cuit && selectedPayer.cuit.length > 5; // Validación mínima de largo
@@ -173,7 +181,7 @@ export function CheckOutPanel() {
         try {
             const resultado = await facturacionApi.generar({
                 idEstadia: estadiaData!.idEstadia,
-                idResponsable: selectedPayer!.idResponsable!,
+                idResponsable: selectedPayer!.idResponsableDePago!,
                 items: itemsSeleccionados.map(i => ({
                     idServicio: i.id,
                     descripcion: i.descripcion,
@@ -299,13 +307,13 @@ export function CheckOutPanel() {
                                                         key={occ.idResponsable || occ.dni}
                                                         onClick={() => { setSelectedPayer(occ); setSearchError(""); }}
                                                         className={`p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center bg-white shadow-sm hover:shadow-md
-                                                            ${selectedPayer?.idResponsable === occ.idResponsable ? 'border-rose-600 ring-2 ring-rose-600 ring-opacity-50' : 'hover:border-rose-300'}`}
+                                                            ${selectedPayer?.idResponsableDePago === occ.idResponsable ? 'border-rose-600 ring-2 ring-rose-600 ring-opacity-50' : 'hover:border-rose-300'}`}
                                                     >
                                                         <div>
                                                             <span className="font-bold text-gray-800 block">{(occ as PersonaFisicaDTO).nombre} {(occ as PersonaFisicaDTO).apellido}</span>
                                                             <span className="text-sm text-gray-500 block">DNI: {(occ as PersonaFisicaDTO).dni}</span>
                                                         </div>
-                                                        {selectedPayer?.idResponsable === occ.idResponsable && <CheckIcon className="text-rose-600" />}
+                                                        {selectedPayer?.idResponsableDePago === occ.idResponsable && <CheckIcon className="text-rose-600" />}
                                                     </div>
                                                 ))}
                                             </div>
@@ -335,7 +343,7 @@ export function CheckOutPanel() {
                                                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800 font-semibold flex justify-between items-center shadow-sm">
                                                     <span className="flex flex-col">
                                                         <span className="text-xs uppercase text-green-600 mb-1">Tercero Seleccionado</span>
-                                                        <span className="text-lg">{selectedPayer.esPersonaJuridica ? (selectedPayer as PersonaJuridicaDTO).razonSocial : `${(selectedPayer as PersonaFisicaDTO).nombre} ${(selectedPayer as PersonaFisicaDTO).apellido}`}</span>
+                                                        <span className="text-lg">{selectedPayer.tipo=="PERSONA_JURIDICA" ? selectedPayer.razonSocial : `${selectedPayer?.huesped?.nombre} ${selectedPayer?.huesped?.apellido}`}</span>
                                                     </span>
                                                     <CheckIcon className="text-green-600" />
                                                 </div>
@@ -365,12 +373,12 @@ export function CheckOutPanel() {
                                     <div>
                                         <p className="text-gray-500 font-bold uppercase tracking-wider text-xs mb-1">Responsable de Pago</p>
                                         <p className="text-xl font-bold text-gray-900">
-                                            {selectedPayer.esPersonaJuridica ? (selectedPayer as PersonaJuridicaDTO).razonSocial : `${(selectedPayer as PersonaFisicaDTO).nombre} ${(selectedPayer as PersonaFisicaDTO).apellido}`}
+                                            {selectedPayer.tipo==="PERSONA_JURIDICA" ? (selectedPayer as PersonaJuridicaDTO).razonSocial : `${(selectedPayer as PersonaFisicaDTO).nombre} ${(selectedPayer as PersonaFisicaDTO).apellido}`}
                                         </p>
                                         <div className="text-sm text-gray-600 mt-1">
-                                            {selectedPayer.esPersonaJuridica ? `CUIT: ${(selectedPayer as PersonaJuridicaDTO).cuit}` : `DNI: ${(selectedPayer as PersonaFisicaDTO).dni}`}
+                                            {selectedPayer.tipo==="PERSONA_JURIDICA"? `CUIT: ${(selectedPayer as PersonaJuridicaDTO).cuit}` : `DNI: ${(selectedPayer as PersonaFisicaDTO).dni}`}
                                             <span className="mx-2">|</span>
-                                            <span className="font-semibold">{selectedPayer.condicionIva}</span>
+                                            <span className="font-semibold">{selectedPayer.huesped?.posicionIva}</span>
                                         </div>
                                     </div>
                                     <div className="text-right">
