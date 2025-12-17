@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import React from "react";
 
 // --- TIPOS ---
 export interface HabitacionDTO {
@@ -69,6 +70,13 @@ const formatearTipo = (tipoEnum: string) => {
         .split('_')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
+};
+
+// --- COLORES HEX (Coinciden con las clases *-50 de Tailwind) ---
+const COLORS = {
+    OCUPADA: "#fef2f2",    // bg-red-50
+    RESERVADA: "#fefce8",  // bg-yellow-50
+    DISPONIBLE: "#f0fdf4", // bg-green-50
 };
 
 export function GrillaDisponibilidad({
@@ -154,68 +162,92 @@ export function GrillaDisponibilidad({
 
                             // --- LÓGICA DE ESTILOS Y PRIORIDADES ---
 
-                            let bg = "bg-white";
+                            let bgClass = "bg-white";
+                            let customStyle = {};
                             let txtColor = "text-gray-300";
-                            let content = "•";
+                            let cellContent: React.ReactNode = "•";
                             let cursor = "cursor-not-allowed";
                             let borderClass = (modo === "checkin" && esHoy) ? "ring-2 ring-inset ring-green-300" : "";
+                            let alignmentClass = "text-center align-middle";
 
                             /* REGLA 1: PREVALENCIA (Overlap) */
                             if (dia.estado === "OCUPADA") {
-                                bg = "bg-red-50";
+                                bgClass = "bg-red-50";
                                 txtColor = "text-red-400 font-medium";
-                                content = "Ocupada";
+                                cellContent = "Ocupada";
                             }
                             else if (dia.estado === "RESERVADA") {
-                                // Configuración Base
-                                bg = "bg-yellow-50 hover:bg-yellow-100";
-                                txtColor = "text-yellow-600 font-medium";
-                                content = "Reservada";
                                 cursor = "cursor-pointer";
 
-                                if (dia.esSalida) {
-                                    // CASO A: Salida de Estadía (Checkout) -> Entrada Reserva
-                                    if (dia.tipoSalida === "ESTADIA") {
-                                        bg = "bg-[linear-gradient(to_right,#fef2f2_0%,#fef2f2_45%,#fefce8_100%)] hover:opacity-90";
-                                        txtColor = "text-orange-600 font-medium";
-                                        content = "Checkout";
-                                    }
-                                    // CASO B: Salida de Reserva -> Entrada Reserva (Res/Res)
-                                    else if (dia.tipoSalida === "RESERVA") {
-                                        // Usamos un degradado de Amarillo Claro a Amarillo un poco más oscuro
-                                        // para crear una sutil "línea" visual de división.
-                                        bg = "bg-[linear-gradient(to_right,#fefce8_0%,#fefce8_45%,#fde047_100%)] hover:opacity-90";
-                                        txtColor = "text-yellow-700 font-bold";
-                                        content = "Res/Res";
-                                    }
+                                // === NUEVA LÓGICA: Checkout -> Reserva (DIAGONAL SIN LINEA) ===
+                                if (dia.esSalida && dia.tipoSalida === "ESTADIA") {
+                                    // Gradiente: Rojo 50% | Amarillo 50% (Corte seco)
+                                    customStyle = {
+                                        background: `linear-gradient(to bottom right, ${COLORS.OCUPADA} 50%, ${COLORS.RESERVADA} 50%)`
+                                    };
+                                    alignmentClass = "relative";
+                                    txtColor = "";
+                                    cellContent = (
+                                        <>
+                                            <span className="absolute top-4 left-2 text-[9px] font-bold text-red-400 leading-none">Out</span>
+                                            <span className="absolute bottom-4 right-2 text-[9px] font-bold text-yellow-600 leading-none">Res</span>
+                                        </>
+                                    );
+                                } else {
+                                    // Reserva Estándar
+                                    bgClass = "bg-yellow-50 hover:bg-yellow-100";
+                                    txtColor = "text-yellow-600 font-medium";
+                                    cellContent = "Res";
                                 }
                             }
                             else if (dia.estado === "MANTENIMIENTO") {
-                                bg = "bg-gray-100";
+                                bgClass = "bg-gray-100";
                                 txtColor = "text-gray-400";
-                                content = "Mant";
+                                cellContent = "Mant";
                             }
                             else if (dia.estado === "DISPONIBLE") {
                                 // Caso base: Libre
-                                bg = "bg-green-50/50 hover:bg-green-100";
+                                bgClass = "bg-green-50/50 hover:bg-green-100";
                                 txtColor = "text-green-600";
-                                content = "Libre";
+                                cellContent = "Libre";
                                 cursor = "cursor-pointer";
 
-                                // REGLA 2: Salidas sin solapamiento
+                                // REGLA 2: CELDAS COMPARTIDAS (Con salida previa)
                                 if (dia.esSalida) {
+                                    alignmentClass = "relative";
+                                    txtColor = "";
+
                                     if (dia.tipoSalida === "ESTADIA") {
-                                        bg = "bg-[linear-gradient(to_right,#fef2f2_0%,#fef2f2_45%,#f0fdf4_100%)] hover:opacity-90";
-                                        txtColor = "text-red-400 font-medium";
-                                        content = "Checkout";
+                                        // Checkout (Rojo) -> Libre (Verde)
+                                        // Corte seco al 50%
+                                        customStyle = {
+                                            background: `linear-gradient(to bottom right, ${COLORS.OCUPADA} 50%, ${COLORS.DISPONIBLE} 50%)`
+                                        };
+                                        cellContent = (
+                                            <>
+                                                <span className="absolute top-4 left-2 text-[9px] font-bold text-red-400 leading-none">Out</span>
+                                                <span className="absolute bottom-4 right-2 text-[9px] font-bold text-green-600 leading-none">Lib</span>
+                                            </>
+                                        );
+
                                     } else if (dia.tipoSalida === "RESERVA") {
-                                        bg = "bg-[linear-gradient(to_right,#fefce8_0%,#fefce8_45%,#f0fdf4_100%)] hover:opacity-90";
-                                        txtColor = "text-yellow-600 font-medium";
-                                        content = "Res/Lib";
+                                        // Fin Reserva (Amarillo) -> Libre (Verde)
+                                        // Corte seco al 50%
+                                        customStyle = {
+                                            background: `linear-gradient(to bottom right, ${COLORS.RESERVADA} 50%, ${COLORS.DISPONIBLE} 50%)`
+                                        };
+                                        cellContent = (
+                                            <>
+                                                <span className="absolute top-4 left-2 text-[9px] font-bold text-yellow-600 leading-none">Res</span>
+                                                <span className="absolute bottom-4 right-2 text-[9px] font-bold text-green-600 leading-none">Lib</span>
+                                            </>
+                                        );
                                     } else {
-                                        bg = "bg-gradient-to-br from-yellow-50 via-white to-green-50";
+                                        // Fallback
+                                        bgClass = "bg-gradient-to-br from-yellow-50 via-white to-green-50";
+                                        alignmentClass = "text-center align-middle";
                                         txtColor = "text-yellow-600 font-semibold";
-                                        content = "Salida";
+                                        cellContent = "Salida";
                                     }
                                 }
                             }
@@ -223,25 +255,28 @@ export function GrillaDisponibilidad({
                             // --- SOBRESCITURAS DE INTERFAZ (Selección, Pasado, etc) ---
 
                             if (pasado) {
-                                bg = "bg-gray-50";
+                                bgClass = "bg-gray-50";
+                                customStyle = {};
                                 txtColor = "text-gray-300";
                                 cursor = "cursor-not-allowed";
-                                if(dia.esSalida) {
-                                    bg = "bg-gray-100";
-                                    content = "•";
-                                }
+                                alignmentClass = "text-center align-middle";
+                                cellContent = "•";
                             }
 
                             if (esFinal) {
-                                bg = "bg-blue-100 border-blue-200";
+                                bgClass = "bg-blue-100 border-blue-200";
+                                customStyle = {};
                                 txtColor = "text-blue-800 font-bold";
-                                content = "✓";
+                                alignmentClass = "text-center align-middle";
+                                cellContent = "✓";
                             }
 
                             if (esSeleccionado) {
-                                bg = "bg-blue-600 shadow-sm";
+                                bgClass = "bg-blue-600 shadow-sm";
+                                customStyle = {};
                                 txtColor = "text-white font-bold";
-                                content = "+";
+                                alignmentClass = "text-center align-middle";
+                                cellContent = "+";
                             }
 
                             if (esInicioMismaHab) {
@@ -252,9 +287,10 @@ export function GrillaDisponibilidad({
                                 <td
                                     key={dia.fecha}
                                     onClick={() => !pasado && !esInicioMismaHab && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero, dia.idReserva)}
-                                    className={`p-1 border-b border-r h-10 transition-all duration-150 ${bg} ${txtColor} ${cursor} ${borderClass} text-center align-middle`}
+                                    className={`p-1 border-b border-r h-10 transition-all duration-150 ${bgClass} ${txtColor} ${cursor} ${borderClass} ${alignmentClass}`}
+                                    style={customStyle}
                                 >
-                                    {content}
+                                    {cellContent}
                                 </td>
                             );
                         })}
