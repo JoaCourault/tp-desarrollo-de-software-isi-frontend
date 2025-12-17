@@ -16,7 +16,8 @@ import {
     AlertTriangle,
     PlusCircle,
     UserPlus,
-    CheckCircle2
+    CheckCircle2,
+    X
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -118,11 +119,10 @@ export default function CheckInPanel() {
     const [alertPendingOpen, setAlertPendingOpen] = useState(false);
 
     // MODALES NUEVOS (REEMPLAZO DE ALERTS)
-    const [modalAlert, setModalAlert] = useState<{ open: boolean; type: 'info'|'warning'|'error'|'success'; title: string; msg: string }>({
+    const [modalAlert, setModalAlert] = useState<{ open: boolean; type: 'info' | 'warning' | 'error' | 'success'; title: string; msg: string }>({
         open: false, type: 'info', title: '', msg: ''
     });
 
-    const [modalConfirmarVacias, setModalConfirmarVacias] = useState(false); // Para cuando hay habitaciones sin gente
     const [modalSalirOpen, setModalSalirOpen] = useState(false);
     const [modalExitoOpen, setModalExitoOpen] = useState(false);
 
@@ -130,7 +130,7 @@ export default function CheckInPanel() {
     const [searchApellido, setSearchApellido] = useState("");
     const [searchNombre, setSearchNombre] = useState("");
     const [searchDocumento, setSearchDocumento] = useState("");
-    const [searchTipoDoc, setSearchTipoDoc] = useState(""); // NUEVO FILTRO
+    const [searchTipoDoc, setSearchTipoDoc] = useState("");
 
     const [listaHuespedes, setListaHuespedes] = useState<Huesped[]>([]);
 
@@ -151,7 +151,7 @@ export default function CheckInPanel() {
     }, []);
 
     // --- HELPER ALERTAS ---
-    const triggerAlert = (type: 'info'|'warning'|'error'|'success', title: string, msg: string) => {
+    const triggerAlert = (type: 'info' | 'warning' | 'error' | 'success', title: string, msg: string) => {
         setModalAlert({ open: true, type, title, msg });
     };
 
@@ -325,11 +325,6 @@ export default function CheckInPanel() {
 
             setListaHuespedes(ordenados);
 
-            if (ordenados.length === 0) {
-                // Opcional: Avisar si no hay resultados, o dejarlo visual
-                // triggerAlert("info", "Sin Resultados", "No se encontraron huéspedes con esos criterios.");
-            }
-
         } catch (error) {
             triggerAlert("error", "Error", "Ocurrió un error al buscar huéspedes.");
         }
@@ -388,19 +383,22 @@ export default function CheckInPanel() {
             return;
         }
 
+        // VALIDACIÓN: Verificar si hay habitaciones vacías
         const habitacionesVacias = selecciones.filter(s => (s.huespedes?.length || 0) === 0);
+
         if (habitacionesVacias.length > 0) {
-            // Abrimos modal de confirmación en lugar de window.confirm
-            setModalConfirmarVacias(true);
-        } else {
-            // Si todo ok, guardamos directo
-            ejecutarCheckInBackend();
+            // Obtener los números de las habitaciones vacías para mostrar en la alerta
+            const numeros = habitacionesVacias.map(h => h.numero).join(", ");
+            triggerAlert("error", "Faltan Huéspedes", `No se puede guardar. Las siguientes habitaciones no tienen huéspedes asignados: ${numeros}.`);
+            return; // DETIENE EL PROCESO
         }
+
+        // Si todo ok, guardamos directo
+        ejecutarCheckInBackend();
     };
 
-    // Paso 2: Llamada al Backend (separada para poder llamarla desde el modal o directo)
+    // Paso 2: Llamada al Backend
     const ejecutarCheckInBackend = async () => {
-        setModalConfirmarVacias(false); // Cerramos el modal por si estaba abierto
         setLoading(true);
 
         // Aplanar lista de Habitaciones
@@ -430,7 +428,7 @@ export default function CheckInPanel() {
             cantNoches: diffDays,
             idReserva: null, // Walk-in
             idsHabitaciones: listaIdsHabitaciones,
-            idsHuespedes: listaIdsHuespedes, // Falta Coma arreglada en tu código previo
+            idsHuespedes: listaIdsHuespedes,
             idHuespedTitular: titularGlobal!.idHuesped
         };
 
@@ -629,6 +627,17 @@ export default function CheckInPanel() {
                                         </div>
                                     )}
                                 </Card>
+
+                                {/* BOTÓN CANCELAR AGREGADO AQUÍ */}
+                                <Button
+                                    variant="outline"
+                                    className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-colors h-10 mt-2"
+                                    onClick={() => setModalSalirOpen(true)}
+                                >
+                                    <X className="h-4 w-4 mr-2" />
+                                    Cancelar Check-In
+                                </Button>
+
                             </aside>
                         )}
                     </>
@@ -693,6 +702,42 @@ export default function CheckInPanel() {
                                         </div>
                                     );
                                 })}
+                            </div>
+
+                            {/* BARRA DE ACCIONES INFERIOR */}
+                            <div className="p-4 border-t bg-gray-50 flex flex-wrap gap-3 justify-between items-center">
+                                {/* IZQUIERDA */}
+                                <div className="flex gap-2">
+                                    <Button variant="outline" onClick={volverAGrilla} className="text-gray-700 border-gray-300 hover:bg-gray-100">
+                                        <PlusCircle className="h-4 w-4 mr-2" />
+                                        Agregar otra habitación
+                                    </Button>
+
+                                    {selecciones.length > 1 && habitacionActivaIndex < selecciones.length - 1 && (
+                                        <Button variant="secondary" onClick={handleSeguirCargando} className="bg-white border hover:bg-gray-100 text-gray-700 shadow-sm">
+                                            Seguir a Siguiente Hab <ArrowRight className="h-4 w-4 ml-2" />
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {/* DERECHA - BOTONES DE ACCIÓN PRINCIPAL */}
+                                <div className="flex gap-2">
+                                    <Button
+                                        className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
+                                        onClick={iniciarProcesoGuardado}
+                                        disabled={loading || !titularGlobal}
+                                    >
+                                        <Save className="h-4 w-4 mr-2" />
+                                        Guardar y Finalizar
+                                    </Button>
+
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() => setModalSalirOpen(true)}
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
                         </Card>
 
@@ -768,48 +813,12 @@ export default function CheckInPanel() {
                                                     className={!isEnActiva ? "border-blue-200 text-blue-700 hover:bg-blue-50" : ""}
                                                     onClick={() => toggleHuespedEnActiva(h)}
                                                 >
-                                                    {isEnActiva ? "Quitar de Hab" : <><UserPlus className="h-3 w-3 mr-1"/> Agregar a Hab</>}
+                                                    {isEnActiva ? "Quitar de Hab" : <><UserPlus className="h-3 w-3 mr-1" /> Agregar a Hab</>}
                                                 </Button>
                                             </div>
                                         </div>
                                     );
                                 })}
-                            </div>
-
-                            {/* BARRA DE ACCIONES INFERIOR */}
-                            <div className="p-4 border-t bg-gray-50 flex flex-wrap gap-3 justify-between items-center">
-                                {/* IZQUIERDA */}
-                                <div className="flex gap-2">
-                                    <Button variant="outline" onClick={volverAGrilla} className="text-gray-700 border-gray-300 hover:bg-gray-100">
-                                        <PlusCircle className="h-4 w-4 mr-2" />
-                                        Agregar otra habitación
-                                    </Button>
-
-                                    {selecciones.length > 1 && habitacionActivaIndex < selecciones.length - 1 && (
-                                        <Button variant="secondary" onClick={handleSeguirCargando} className="bg-white border hover:bg-gray-100 text-gray-700 shadow-sm">
-                                            Seguir a Siguiente Hab <ArrowRight className="h-4 w-4 ml-2" />
-                                        </Button>
-                                    )}
-                                </div>
-
-                                {/* DERECHA - BOTONES DE ACCIÓN PRINCIPAL */}
-                                <div className="flex gap-2">
-                                    <Button
-                                        className="bg-green-700 hover:bg-green-800 text-white shadow-md w-48"
-                                        onClick={iniciarProcesoGuardado} // CAMBIADO: Inicia flujo con validación de modal
-                                        disabled={loading || !titularGlobal}
-                                    >
-                                        <Save className="h-4 w-4 mr-2" />
-                                        Guardar y Finalizar
-                                    </Button>
-
-                                    <Button
-                                        variant="destructive"
-                                        onClick={() => setModalSalirOpen(true)}
-                                    >
-                                        <LogOut className="h-4 w-4" />
-                                    </Button>
-                                </div>
                             </div>
                         </Card>
                     </div>
@@ -823,7 +832,7 @@ export default function CheckInPanel() {
                 type={modalAlert.type}
                 title={modalAlert.title}
                 message={modalAlert.msg}
-                onOk={() => setModalAlert(prev => ({...prev, open: false}))}
+                onOk={() => setModalAlert(prev => ({ ...prev, open: false }))}
                 okText="Aceptar"
             />
 
@@ -867,31 +876,6 @@ export default function CheckInPanel() {
                 </DialogContent>
             </Dialog>
 
-            {/* 4. Modal de CONFIRMACIÓN DE HABITACIONES VACÍAS (Reemplaza window.confirm) */}
-            <Dialog open={modalConfirmarVacias} onOpenChange={setModalConfirmarVacias}>
-                <DialogContent className="border-amber-200 bg-amber-50">
-                    <DialogHeader>
-                        <DialogTitle className="text-amber-800 flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5" />
-                            Habitaciones sin Huéspedes
-                        </DialogTitle>
-                        <DialogDescription className="text-amber-700 pt-2">
-                            Hay habitaciones seleccionadas a las que no se les ha asignado ningún huésped acompañante.
-                            <br/><br/>
-                            ¿Desea continuar de todas formas?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setModalConfirmarVacias(false)} className="border-amber-200 text-amber-900 hover:bg-amber-100">
-                            Revisar
-                        </Button>
-                        <Button onClick={ejecutarCheckInBackend} className="bg-amber-600 hover:bg-amber-700 text-white">
-                            Sí, Continuar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
             {/* 5. Modal de ÉXITO */}
             <Dialog open={modalExitoOpen} onOpenChange={setModalExitoOpen}>
                 <DialogContent className="border-green-200 bg-green-50 sm:max-w-md">
@@ -907,7 +891,7 @@ export default function CheckInPanel() {
 
                     <div className="py-4">
                         <p className="text-sm text-gray-600 text-center font-medium">
-                            ¿Desea cargar otra habitación ahora?
+                            ¿Desea cargar otro Check-In ahora?
                         </p>
                     </div>
 
@@ -923,7 +907,7 @@ export default function CheckInPanel() {
                             onClick={handleCargarOtra}
                             className="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white"
                         >
-                            Sí, cargar otra
+                            Sí, cargar otro
                         </Button>
                     </DialogFooter>
                 </DialogContent>
