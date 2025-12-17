@@ -9,9 +9,13 @@ export interface HabitacionDTO {
 }
 
 export interface DisponibilidadDia {
-    fecha: string; // Formato YYYY-MM-DD
+    fecha: string;
+    // Agregamos null por si acaso, aunque idealmente es string fijo
     estado: "DISPONIBLE" | "OCUPADA" | "RESERVADA" | "MANTENIMIENTO";
     idReserva?: string;
+    esSalida?: boolean;
+    // Indica qué tipo de evento finalizó: 'ESTADIA' o 'RESERVA'
+    tipoSalida?: "ESTADIA" | "RESERVA" | null;
 }
 
 export interface HabitacionDisponibilidad {
@@ -102,11 +106,11 @@ export function GrillaDisponibilidad({
     const colorHabitacion = modo === "checkin" ? "text-green-900" : "text-rose-950";
 
     return (
-        <div className="overflow-x-auto border rounded-lg border-gray-200">
-            <table className="w-full text-xs text-center border-collapse select-none">
+        <div className="overflow-x-auto border rounded-lg border-gray-200 w-full shadow-sm">
+            <table className="min-w-full text-xs text-center border-collapse select-none">
                 <thead>
                 <tr>
-                    <th className="p-3 text-left bg-gray-50 border-b text-gray-600 font-medium sticky left-0 z-10 w-32 shadow-sm">
+                    <th className="p-3 text-left bg-gray-50 border-b text-gray-600 font-medium sticky left-0 z-20 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         Habitación
                     </th>
                     {data[0]?.disponibilidad?.map((d, i) => {
@@ -141,56 +145,88 @@ export function GrillaDisponibilidad({
                             const esHoy = dia.fecha === getTodayString();
                             const pasado = isDatePast(dia.fecha);
 
+                            // --- LÓGICA DE ESTILOS Y PRIORIDADES ---
+
                             let bg = "bg-white";
                             let txtColor = "text-gray-300";
                             let content = "•";
                             let cursor = "cursor-not-allowed";
+                            let borderClass = (modo === "checkin" && esHoy) ? "ring-2 ring-inset ring-green-300" : "";
 
-                            if (dia.estado === "DISPONIBLE") {
+                            /* REGLA 1: PREVALENCIA (Overlap) */
+                            if (dia.estado === "OCUPADA") {
+                                bg = "bg-red-50";
+                                txtColor = "text-red-400 font-medium";
+                                content = "Ocu";
+                            }
+                            else if (dia.estado === "RESERVADA") {
+                                bg = "bg-yellow-50 hover:bg-yellow-100";
+                                txtColor = "text-yellow-600 font-medium";
+                                content = "Res";
+                                cursor = "cursor-pointer";
+                            }
+                            else if (dia.estado === "MANTENIMIENTO") {
+                                bg = "bg-gray-100";
+                                txtColor = "text-gray-400";
+                                content = "Mant";
+                            }
+                            else if (dia.estado === "DISPONIBLE") {
+                                // Caso base: Libre
                                 bg = "bg-green-50/50 hover:bg-green-100";
                                 txtColor = "text-green-600";
                                 content = "Libre";
                                 cursor = "cursor-pointer";
-                            } else if (dia.estado === "OCUPADA") {
-                                bg = "bg-red-50";
-                                txtColor = "text-red-300";
-                                content = "Ocu";
-                                // Si queremos permitir ver detalles de estadía, cambia a pointer
-                                //cursor = "cursor-pointer";
-                            } else if (dia.estado === "MANTENIMIENTO") {
-                                bg = "bg-gray-100";
-                                txtColor = "text-gray-400";
-                                content = "Mant";
-                            } else if (dia.estado === "RESERVADA") {
-                                bg = "bg-yellow-50 hover:bg-yellow-100";
-                                txtColor = "text-yellow-600";
-                                content = "Res";
-                                cursor = "cursor-pointer";
+
+                                // REGLA 2 y 3: FIN DE ESTADÍA O RESERVA (Sin Overlap)
+                                if (dia.esSalida) {
+                                    if (dia.tipoSalida === "ESTADIA") {
+                                        // Degrade ROJO-50 a VERDE-50
+                                        bg = "bg-[linear-gradient(to_right,#fef2f2_0%,#fef2f2_45%,#f0fdf4_100%)] hover:opacity-90";
+                                        txtColor = "text-red-400 font-medium text-[10px]";
+                                        content = "Checkout";
+                                    } else if (dia.tipoSalida === "RESERVA") {
+                                        // Degrade AMARILLO-50 a VERDE-50
+                                        bg = "bg-[linear-gradient(to_right,#fefce8_0%,#fefce8_45%,#f0fdf4_100%)] hover:opacity-90";
+                                        txtColor = "text-yellow-600 font-medium text-[10px]";
+                                        content = "Fin Res.";
+                                    } else {
+                                        // Fallback suave
+                                        bg = "bg-gradient-to-br from-yellow-50 via-white to-green-50";
+                                        txtColor = "text-yellow-600 font-semibold";
+                                        content = "Salida";
+                                    }
+                                }
                             }
+
+                            // --- SOBRESCITURAS DE INTERFAZ (Selección, Pasado, etc) ---
 
                             if (pasado) {
                                 bg = "bg-gray-50";
                                 txtColor = "text-gray-300";
                                 cursor = "cursor-not-allowed";
+                                if(dia.esSalida) {
+                                     bg = "bg-gray-100";
+                                     content = "•";
+                                }
                             }
+
                             if (esFinal) {
                                 bg = "bg-blue-100 border-blue-200";
                                 txtColor = "text-blue-800 font-bold";
                                 content = "✓";
                             }
+
                             if (esSeleccionado) {
                                 bg = modo === "checkin" ? "bg-blue-600 shadow-sm" : "bg-rose-600 shadow-sm";
                                 txtColor = "text-white font-bold";
                                 content = "+";
                             }
-                            const borderClass = (modo === "checkin" && esHoy) ? "ring-2 ring-inset ring-green-300" : "";
 
                             return (
                                 <td
                                     key={dia.fecha}
-                                    // AQUÍ PASAMOS EL dia.idReserva HACIA ARRIBA
                                     onClick={() => !pasado && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero, dia.idReserva)}
-                                    className={`p-1 border-b border-r h-10 transition-all duration-150 ${bg} ${txtColor} ${cursor} ${borderClass}`}
+                                    className={`p-1 border-b border-r h-10 transition-all duration-150 ${bg} ${txtColor} ${cursor} ${borderClass} text-center align-middle`}
                                 >
                                     {content}
                                 </td>

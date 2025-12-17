@@ -513,11 +513,16 @@ export default function CheckInPanel() {
                                 </select>
                             </div>
 
-                            <div className="w-28 sm:w-32">
+                            <div className="w-32 sm:w-35">
                                 <label className="text-xs font-semibold text-gray-500">Entrada</label>
-                                <Input value={getTodayString()} disabled className="h-9 bg-gray-100 text-center" />
+                                <Input
+                                    type="date"
+                                    value={getTodayString()}
+                                    disabled
+                                    className="h-9 bg-gray-100 text-center px-2 text-sm"
+                                />
                             </div>
-                            <div className="w-28 sm:w-32">
+                            <div className="w-32 sm:w-40">
                                 <label className="text-xs font-semibold text-gray-500">Salida</label>
                                 <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} min={getTomorrowString()} className="h-9 text-center" />
                             </div>
@@ -532,10 +537,11 @@ export default function CheckInPanel() {
             {/* CONTENIDO PRINCIPAL */}
             <div className="flex flex-col lg:flex-row gap-6">
 
-                {/*  MODO GRILLA  */}
+                {/* MODO GRILLA  */}
                 {paso === "GRILLA" && (
                     <>
-                        <div className="flex-1 space-y-4">
+                        {/* AQUI ESTA LA MAGIA: min-w-0 evita que el flex child empuje el ancho */}
+                        <div className="flex-1 space-y-4 min-w-0">
                             {searched ? (
                                 <GrillaDisponibilidad
                                     data={gridData}
@@ -628,7 +634,7 @@ export default function CheckInPanel() {
                                     )}
                                 </Card>
 
-                                {/* BOToN CANCELAR AGREGADO AQUÍ */}
+                                {/* BOToN CANCELAR */}
                                 <Button
                                     variant="outline"
                                     className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-colors h-10 mt-2"
@@ -643,7 +649,7 @@ export default function CheckInPanel() {
                     </>
                 )}
 
-                {/*  MODO HUÉSPEDES  */}
+                {/* MODO HUÉSPEDES  */}
                 {paso === "HUESPEDES" && (
                     <div className="w-full flex flex-col lg:flex-row gap-6 h-[calc(100vh-200px)] animate-in fade-in">
                         {/* IZQUIERDA: LISTA HABITACIONES Y TITULAR */}
@@ -753,7 +759,7 @@ export default function CheckInPanel() {
                             </CardHeader>
                             <div className="px-6 pb-4">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 items-end">
-                                    {/*  CAMPOS DE BÚSQUEDA  */}
+                                    {/* CAMPOS DE BÚSQUEDA  */}
                                     <div>
                                         <Input id="input-apellido" placeholder="Apellido" value={searchApellido} onChange={(e) => setSearchApellido(e.target.value.toUpperCase())} />
                                     </div>
@@ -761,7 +767,7 @@ export default function CheckInPanel() {
                                         <Input placeholder="Nombre" value={searchNombre} onChange={(e) => setSearchNombre(e.target.value.toUpperCase())} />
                                     </div>
 
-                                    {/*  NUEVO FILTRO TIPO DOC  */}
+                                    {/* NUEVO FILTRO TIPO DOC  */}
                                     <div>
                                         <select
                                             className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -825,7 +831,7 @@ export default function CheckInPanel() {
                 )}
             </div>
 
-            {/*  MODALES  */}
+            {/* MODALES  */}
 
             <ModalAlert
                 open={modalAlert.open}
