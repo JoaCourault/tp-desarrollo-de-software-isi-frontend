@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 // --- TIPOS ---
 export interface HabitacionDTO {
@@ -156,12 +156,52 @@ export function GrillaDisponibilidad({
 
                             let bg = "bg-white";
                             let txtColor = "text-gray-300";
-                            let content = "•";
+                            // Cambiamos el tipo a ReactNode para poder meter JSX (<br/>)
+                            let content: ReactNode = "•";
                             let cursor = "cursor-not-allowed";
                             let borderClass = (modo === "checkin" && esHoy) ? "ring-2 ring-inset ring-green-300" : "";
 
-                            /* REGLA 1: PREVALENCIA (Overlap) */
-                            if (dia.estado === "OCUPADA") {
+                            /*
+                                PRIORIDAD 1: OVERLAPS (Coincidencia de Fin con Inicio)
+                                Verificamos si es un día de SALIDA y a la vez tiene estado OCUPADA o RESERVADA
+                            */
+                            if (dia.esSalida && (dia.estado === "OCUPADA" || dia.estado === "RESERVADA")) {
+
+                                // CASO 1 & 2: FIN DE ESTADÍA...
+                                if (dia.tipoSalida === "ESTADIA") {
+                                    if (dia.estado === "OCUPADA") {
+                                        // 1. ...e INICIO ESTADÍA (Rojo Solido)
+                                        bg = "bg-red-50";
+                                        txtColor = "text-red-400 font-medium";
+                                        content = <>CheckOut<br/>CheckIn</>;
+                                    } else {
+                                        // 2. ...e INICIO RESERVA (Degrade Rojo -> Amarillo)
+                                        bg = "bg-[linear-gradient(to_right,#fef2f2_0%,#fef2f2_45%,#fefce8_100%)] hover:opacity-90";
+                                        txtColor = "text-red-400 font-medium";
+                                        content = <>CheckOut<br/>Reservada</>;
+                                        cursor = "cursor-pointer";
+                                    }
+                                }
+                                // CASO 3 & 4: FIN DE RESERVA...
+                                else if (dia.tipoSalida === "RESERVA") {
+                                    if (dia.estado === "RESERVADA") {
+                                        // 3. ...e INICIO RESERVA (Amarillo Solido)
+                                        bg = "bg-yellow-50 hover:bg-yellow-100";
+                                        txtColor = "text-yellow-600 font-medium";
+                                        content = <>Fin Reserva<br/>Reservada</>;
+                                        cursor = "cursor-pointer";
+                                    } else {
+                                        // 4. ...e INICIO ESTADÍA (Degrade Amarillo -> Rojo)
+                                        bg = "bg-[linear-gradient(to_right,#fefce8_0%,#fefce8_45%,#fef2f2_100%)] hover:opacity-90";
+                                        txtColor = "text-yellow-600 font-medium";
+                                        content = <>Fin Reserva<br/>CheckIn</>;
+                                    }
+                                }
+                            }
+                            /*
+                                PRIORIDAD 2: ESTADOS PUROS (Sin overlap de salida)
+                            */
+                            else if (dia.estado === "OCUPADA") {
                                 bg = "bg-red-50";
                                 txtColor = "text-red-400 font-medium";
                                 content = "Ocupada";
@@ -177,6 +217,9 @@ export function GrillaDisponibilidad({
                                 txtColor = "text-gray-400";
                                 content = "Mant";
                             }
+                            /*
+                                PRIORIDAD 3: DISPONIBLE (O transiciones a Libre)
+                            */
                             else if (dia.estado === "DISPONIBLE") {
                                 // Caso base: Libre
                                 bg = "bg-green-50/50 hover:bg-green-100";
@@ -184,20 +227,17 @@ export function GrillaDisponibilidad({
                                 content = "Libre";
                                 cursor = "cursor-pointer";
 
-                                // REGLA 2 y 3: FIN DE ESTADÍA O RESERVA (Sin Overlap)
+                                // REGLA 5: TRANSICIONES A LIBRE (Degrades a Verde)
                                 if (dia.esSalida) {
                                     if (dia.tipoSalida === "ESTADIA") {
-                                        // Degrade ROJO-50 a VERDE-50
                                         bg = "bg-[linear-gradient(to_right,#fef2f2_0%,#fef2f2_45%,#f0fdf4_100%)] hover:opacity-90";
                                         txtColor = "text-red-400 font-medium";
                                         content = "Checkout";
                                     } else if (dia.tipoSalida === "RESERVA") {
-                                        // Degrade AMARILLO-50 a VERDE-50
                                         bg = "bg-[linear-gradient(to_right,#fefce8_0%,#fefce8_45%,#f0fdf4_100%)] hover:opacity-90";
                                         txtColor = "text-yellow-600 font-medium";
                                         content = "Fin Reserva";
                                     } else {
-                                        // Fallback suave
                                         bg = "bg-gradient-to-br from-yellow-50 via-white to-green-50";
                                         txtColor = "text-yellow-600 font-semibold";
                                         content = "Salida";
@@ -239,7 +279,7 @@ export function GrillaDisponibilidad({
                                     onClick={() => !pasado && !esInicioMismaHab && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero, dia.idReserva)}
                                     className={`p-1 border-b border-r h-10 transition-all duration-150 ${bg} ${txtColor} ${cursor} ${borderClass} text-center align-middle`}
                                 >
-                                    {content}
+                                    <span className="text-[10px] leading-tight block">{content}</span>
                                 </td>
                             );
                         })}
