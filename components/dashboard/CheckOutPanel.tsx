@@ -132,11 +132,21 @@ export function CheckOutPanel() {
 
     // Determinar tipo factura
     const determinarTipoFactura = () => {
-        if (!selectedPayer) return "B";
-        // Factura A solo a Responsables Inscriptos con CUIT
-        if (selectedPayer.condicionIva === "RESPONSABLE_INSCRIPTO" && selectedPayer.cuit) return "A";
-        return "B"; // Consumidor Final o Falta CUIT
-    };
+            if (!selectedPayer) return "B";
+
+            // 1. Normalizamos el texto
+            const condicion = (selectedPayer.condicionIva || "").toUpperCase().trim();
+
+            // 2. Verificamos si tiene CUIT
+            const tieneCuit = selectedPayer.cuit && selectedPayer.cuit.length > 5; // Validación mínima de largo
+
+            // 3. Comparamos
+            if (condicion.includes("RESPONSABLE INSCRIPTO") && tieneCuit) {
+                return "A";
+            }
+
+            return "B"; // Por defecto Consumidor Final o si falta CUIT
+        };
 
     // --- CONFIRMACIÓN Y FACTURACIÓN ---
     const handlePreFacturar = () => {
