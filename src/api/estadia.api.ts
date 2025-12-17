@@ -1,13 +1,12 @@
 import { EstadiaDetalleDTO } from "@/src/dto/Facturacion.dto";
 
-
 const BASE_URL = "http://localhost:8080/Estadia";
 
 export const estadiaApi = {
-    // Busca la estadía activa por número de habitación
-    buscarPorHabitacion: async (numeroHabitacion: string): Promise<EstadiaDetalleDTO> => {
-        // Se asume endpoint: GET /Estadia/BuscarPorHabitacion?numero=101
-        const response = await fetch(`${BASE_URL}/BuscarPorHabitacion?numero=${numeroHabitacion}`);
+    // Busca la estadía activa por número de habitación y hora
+    buscarPorHabitacion: async (numeroHabitacion: string, horaSalida: string): Promise<EstadiaDetalleDTO> => {
+        // GET /Estadia/BuscarPorHabitacion?numero=101&hora=10:00
+        const response = await fetch(`${BASE_URL}/BuscarPorHabitacion?numero=${numeroHabitacion}&hora=${horaSalida}`);
 
         if (response.status === 404) {
             throw new Error("No hay una estadía activa en esta habitación.");
