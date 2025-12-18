@@ -94,7 +94,7 @@ export default function DashboardPage() {
                                 : "text-muted-foreground hover:text-rose-900 hover:bg-rose-50"
                             }`}
                         >
-                            <Bed className="w-4 h-4" /> Gestión de Habitaciones
+                            <Bed className="w-4 h-4" /> Reservar
                         </Button>
 
                         {/* TAB Check-In */}

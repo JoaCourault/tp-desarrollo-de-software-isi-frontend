@@ -160,6 +160,14 @@ export function GrillaDisponibilidad({
                             const pasado = isDatePast(dia.fecha);
                             const esInicioMismaHab = tempSelection.roomId === row.habitacion.id_habitacion && tempSelection.start === dia.fecha && !tempSelection.end;
 
+                            // Nueva validación: ¿Esta celda es una noche que ya está en el carrito?
+                            // Bloqueamos desde el inicio hasta el día ANTERIOR al fin (el fin está libre para entrada)
+                            const estaEnCarrito = finalSelections.some(sel =>
+                                sel.idHabitacion === row.habitacion.id_habitacion &&
+                                dia.fecha >= sel.fechaDesde &&
+                                dia.fecha < sel.fechaHasta
+                            );
+
                             // --- LÓGICA DE ESTILOS Y PRIORIDADES ---
 
                             let bgClass = "bg-white";
@@ -181,7 +189,6 @@ export function GrillaDisponibilidad({
 
                                 // === NUEVA LÓGICA: Checkout -> Reserva (DIAGONAL SIN LINEA) ===
                                 if (dia.esSalida && dia.tipoSalida === "ESTADIA") {
-                                    // Gradiente: Rojo 50% | Amarillo 50% (Corte seco)
                                     customStyle = {
                                         background: `linear-gradient(to bottom right, ${COLORS.OCUPADA} 50%, ${COLORS.RESERVADA} 50%)`
                                     };
@@ -194,7 +201,6 @@ export function GrillaDisponibilidad({
                                         </>
                                     );
                                 } else {
-                                    // Reserva Estándar
                                     bgClass = "bg-yellow-50 hover:bg-yellow-100";
                                     txtColor = "text-yellow-600 font-medium";
                                     cellContent = "Res";
@@ -206,20 +212,16 @@ export function GrillaDisponibilidad({
                                 cellContent = "Mant";
                             }
                             else if (dia.estado === "DISPONIBLE") {
-                                // Caso base: Libre
                                 bgClass = "bg-green-50/50 hover:bg-green-100";
                                 txtColor = "text-green-600";
                                 cellContent = "Libre";
                                 cursor = "cursor-pointer";
 
-                                // REGLA 2: CELDAS COMPARTIDAS (Con salida previa)
                                 if (dia.esSalida) {
                                     alignmentClass = "relative";
                                     txtColor = "";
 
                                     if (dia.tipoSalida === "ESTADIA") {
-                                        // Checkout (Rojo) -> Libre (Verde)
-                                        // Corte seco al 50%
                                         customStyle = {
                                             background: `linear-gradient(to bottom right, ${COLORS.OCUPADA} 50%, ${COLORS.DISPONIBLE} 50%)`
                                         };
@@ -231,8 +233,6 @@ export function GrillaDisponibilidad({
                                         );
 
                                     } else if (dia.tipoSalida === "RESERVA") {
-                                        // Fin Reserva (Amarillo) -> Libre (Verde)
-                                        // Corte seco al 50%
                                         customStyle = {
                                             background: `linear-gradient(to bottom right, ${COLORS.RESERVADA} 50%, ${COLORS.DISPONIBLE} 50%)`
                                         };
@@ -243,7 +243,6 @@ export function GrillaDisponibilidad({
                                             </>
                                         );
                                     } else {
-                                        // Fallback
                                         bgClass = "bg-gradient-to-br from-yellow-50 via-white to-green-50";
                                         alignmentClass = "text-center align-middle";
                                         txtColor = "text-yellow-600 font-semibold";
@@ -279,14 +278,14 @@ export function GrillaDisponibilidad({
                                 cellContent = "+";
                             }
 
-                            if (esInicioMismaHab) {
+                            if (esInicioMismaHab || estaEnCarrito) {
                                 cursor = "cursor-not-allowed";
                             }
 
                             return (
                                 <td
                                     key={dia.fecha}
-                                    onClick={() => !pasado && !esInicioMismaHab && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero, dia.idReserva)}
+                                    onClick={() => !pasado && !esInicioMismaHab && !estaEnCarrito && onCellClick(row.habitacion.id_habitacion, dia.fecha, dia.estado, row.habitacion.numero, dia.idReserva)}
                                     className={`p-1 border-b border-r h-10 transition-all duration-150 ${bgClass} ${txtColor} ${cursor} ${borderClass} ${alignmentClass}`}
                                     style={customStyle}
                                 >

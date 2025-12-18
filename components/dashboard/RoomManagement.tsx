@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     Bed,
     Search,
@@ -10,7 +10,8 @@ import {
     ArrowRight,
     ListChecks,
     CalendarDays,
-    AlertTriangle
+    AlertTriangle,
+    Loader2
 } from "lucide-react";
 import { crearReserva } from "@/src/api/reserva.api";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ import {
 // Importamos la constante compartida
 import { TIPOS_HABITACION } from "@/src/constants/tiposHabitacion";
 
-//  TIPOS LOCALES 
+//  TIPOS LOCALES
 interface Seleccion {
     idHabitacion: string;
     fechaDesde: string;
@@ -45,7 +46,7 @@ interface Seleccion {
     numero: number;
 }
 
-//  UTILIDADES 
+//  UTILIDADES
 const isDatePast = (dateStr: string) => {
     const checkDate = new Date(dateStr + "T00:00:00");
     const today = new Date();
@@ -62,7 +63,7 @@ const getNextDay = (dateStr: string) => {
 };
 
 
-//  COMPONENTE PRINCIPAL 
+//  COMPONENTE PRINCIPAL
 export function RoomManagement() {
 
     // Estados de búsqueda
@@ -89,7 +90,7 @@ export function RoomManagement() {
     const [alertOpen, setAlertOpen] = useState(false); // Modal de selección pendiente
     const [guestData, setGuestData] = useState({ nombre: "", apellido: "", telefono: "" });
 
-    //  MODAL DE ALERTAS GENÉRICAS 
+    //  MODAL DE ALERTAS GENÉRICAS
     const [modalAlert, setModalAlert] = useState<{
         open: boolean;
         type: 'info'|'warning'|'error'|'success';
@@ -119,13 +120,37 @@ export function RoomManagement() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
-    //  LOGICA 
+    // --- EFECTO PARA LIMPIAR DATOS CUANDO EL CARRITO QUEDA VACÍO ---
+    useEffect(() => {
+        if (selecciones.length === 0) {
+            setGuestData({ nombre: "", apellido: "", telefono: "" });
+        }
+    }, [selecciones]);
+
+    // --- MANEJO DE ENTRADAS FÍSICAS (VALIDACIONES) ---
+
+    const handleNameInput = (val: string, field: 'nombre' | 'apellido') => {
+        if (val.startsWith(" ")) return;
+        if (val.includes("  ")) return;
+        const regex = /^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]*$/;
+        if (val === "" || regex.test(val)) {
+            setGuestData(prev => ({ ...prev, [field]: val }));
+        }
+    };
+
+    const handlePhoneInput = (val: string) => {
+        if (val.length > 25) return;
+        const regex = /^[0-9+]*$/;
+        if (val === "" || regex.test(val)) {
+            setGuestData(prev => ({ ...prev, telefono: val }));
+        }
+    };
+
+    //  LOGICA
 
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // VALIDACIÓN DE RANGO EN EL FRONT (Mínimo 1 noche)
-        // Usamos >= porque "desde" no puede ser igual a "hasta"
         if (new Date(desde) >= new Date(hasta)) {
             triggerAlert("warning", "Fechas Incorrectas", "La fecha 'Hasta' debe ser posterior a 'Desde' (Mínimo 1 noche).");
             return;
@@ -160,6 +185,12 @@ export function RoomManagement() {
             return;
         }
 
+        // VALIDACIÓN DE CARRITO: Bloquear si la fecha ya es una "noche" en Mis Reservas
+        const yaEnCarrito = selecciones.some(sel =>
+            sel.idHabitacion === roomId && dateStr >= sel.fechaDesde && dateStr < sel.fechaHasta
+        );
+        if (yaEnCarrito) return;
+
         if (!tempSelect.start) {
             setTempSelect({ start: dateStr, end: null, roomId });
         } else if (tempSelect.start && !tempSelect.end) {
@@ -174,6 +205,21 @@ export function RoomManagement() {
             if (new Date(dateStr) < new Date(start)) {
                 from = dateStr;
                 to = start;
+            }
+
+            // Validar que no haya nada del carrito EN EL MEDIO del nuevo rango
+            const conflictoCarrito = selecciones.some(sel => {
+                if (sel.idHabitacion !== roomId) return false;
+                // El nuevo rango es [from, to]. Hay conflicto si se solapa con [sel.desde, sel.hasta - 1 noche]
+                const overlapStart = from > sel.fechaDesde ? from : sel.fechaDesde;
+                const overlapEnd = to < sel.fechaHasta ? to : sel.fechaHasta;
+                return overlapStart < overlapEnd;
+            });
+
+            if (conflictoCarrito) {
+                triggerAlert("warning", "Selección Inválida", "El rango seleccionado se superpone con una reserva ya existente en el carrito.");
+                setTempSelect({ start: null, end: null, roomId: null });
+                return;
             }
 
             const habitacionActual = gridData.find(h => h.habitacion.id_habitacion === roomId);
@@ -238,31 +284,19 @@ export function RoomManagement() {
     };
 
     const handleConfirmarReserva = async () => {
-        const nombreRegex = /^[a-zA-Z\s]+$/;
-        const telefonoRegex = /^[0-9]+$/;
+        const nombreFinal = guestData.nombre.trim();
+        const apellidoFinal = guestData.apellido.trim();
+        const telefonoFinal = guestData.telefono.trim();
 
-        if (!guestData.nombre || !guestData.apellido || !guestData.telefono) {
+        if (!nombreFinal || !apellidoFinal || !telefonoFinal) {
             triggerAlert("warning", "Campos Incompletos", "Por favor complete todos los campos del huésped titular.");
             return;
         }
 
-        if (!nombreRegex.test(guestData.nombre)) {
-            triggerAlert("warning", "Nombre Inválido", "El nombre solo puede contener letras y espacios.");
-            return;
-        }
-        if (!nombreRegex.test(guestData.apellido)) {
-            triggerAlert("warning", "Apellido Inválido", "El apellido solo puede contener letras y espacios.");
-            return;
-        }
-        if (!telefonoRegex.test(guestData.telefono)) {
-            triggerAlert("warning", "Teléfono Inválido", "El teléfono solo puede contener números.");
-            return;
-        }
-
         const payload = {
-            nombreCliente: guestData.nombre,
-            apellidoCliente: guestData.apellido,
-            telefonoCliente: guestData.telefono,
+            nombreCliente: nombreFinal,
+            apellidoCliente: apellidoFinal,
+            telefonoCliente: telefonoFinal,
             reservas: selecciones.map((sel) => ({
                 idHabitacion: sel.idHabitacion,
                 fechaDesde: sel.fechaDesde,
@@ -299,11 +333,9 @@ export function RoomManagement() {
         }
     };
 
-    //  RENDER 
     return (
         <div className="container mx-auto max-w-7xl p-4 sm:p-6 space-y-8 animate-in fade-in duration-500 pb-10 min-h-screen">
 
-            {/* HEADER */}
             <Card className="bg-white border-rose-100 shadow-sm">
                 <CardContent className="p-6">
                     <div className="flex items-center gap-2 mb-4">
@@ -328,7 +360,6 @@ export function RoomManagement() {
                         </div>
                         <div className="w-full sm:w-1/4">
                             <label className="text-sm font-medium text-gray-700">Hasta</label>
-                            {/* AQUÍ ESTÁ EL BLOQUEO VISUAL */}
                             <Input
                                 type="date"
                                 value={hasta}
@@ -360,11 +391,9 @@ export function RoomManagement() {
                 </CardContent>
             </Card>
 
-            {/* CONTENEDOR PRINCIPAL */}
             {searched && (
                 <div className="flex flex-col lg:flex-row gap-6 items-start animate-in slide-in-from-bottom-4 duration-500">
 
-                    {/* ZONA DE LA GRILLA */}
                     <div className="w-full lg:flex-1 min-w-0">
                         <Card className="border-rose-100 shadow-sm overflow-hidden">
                             <div className="p-4 border-b border-rose-100 bg-rose-50/30 flex justify-between items-center">
@@ -387,10 +416,8 @@ export function RoomManagement() {
                         </Card>
                     </div>
 
-                    {/* PANELES LATERALES */}
                     <aside className="w-full lg:w-80 shrink-0 space-y-4 sticky top-6 animate-in slide-in-from-right duration-500">
 
-                        {/* Panel de Selección Actual */}
                         <Card className={`border-2 transition-all shadow-md ${tempSelect.roomId ? 'border-blue-400 bg-blue-50/50' : 'border-gray-100 bg-gray-50 opacity-80'}`}>
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm font-bold uppercase text-gray-500 flex items-center gap-2">
@@ -423,7 +450,6 @@ export function RoomManagement() {
                             </CardContent>
                         </Card>
 
-                        {/* Carrito de Reservas */}
                         <Card className="border-gray-200 shadow-sm h-fit max-h-[500px] flex flex-col">
                             <CardHeader className="pb-3 border-b bg-gray-50">
                                 <CardTitle className="text-base font-semibold text-gray-800 flex justify-between items-center">
@@ -460,7 +486,7 @@ export function RoomManagement() {
                                 )}
                             </CardContent>
 
-                            {(selecciones.length > 0 || (tempSelect.start && tempSelect.end)) && (
+                            {selecciones.length > 0 && (
                                 <div className="p-4 border-t bg-gray-50">
                                     <Button
                                         className="w-full bg-rose-900 hover:bg-rose-800 text-white shadow-md"
@@ -476,9 +502,6 @@ export function RoomManagement() {
                 </div>
             )}
 
-            {/*  MODALES  */}
-
-            {/* 1. Modal Alerta Genérico (Success, Error, Warning) */}
             <ModalAlert
                 open={modalAlert.open}
                 type={modalAlert.type}
@@ -488,7 +511,6 @@ export function RoomManagement() {
                 okText="Aceptar"
             />
 
-            {/* 2. Modal Selección Pendiente */}
             <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
                 <DialogContent className="sm:max-w-md border-amber-200 bg-amber-50">
                     <DialogHeader>
@@ -516,7 +538,6 @@ export function RoomManagement() {
                 </DialogContent>
             </Dialog>
 
-            {/* 3. Modal Carga Datos Huésped */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="sm:max-w-md border-rose-100">
                     <DialogHeader>
@@ -529,13 +550,27 @@ export function RoomManagement() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
-                        <Input placeholder="Nombre" value={guestData.nombre} onChange={e => setGuestData({ ...guestData, nombre: e.target.value })} />
-                        <Input placeholder="Apellido" value={guestData.apellido} onChange={e => setGuestData({ ...guestData, apellido: e.target.value })} />
-                        <Input placeholder="Teléfono" value={guestData.telefono} onChange={e => setGuestData({ ...guestData, telefono: e.target.value })} />
+                        <Input
+                            placeholder="Nombre"
+                            value={guestData.nombre}
+                            onChange={e => handleNameInput(e.target.value, 'nombre')}
+                        />
+                        <Input
+                            placeholder="Apellido"
+                            value={guestData.apellido}
+                            onChange={e => handleNameInput(e.target.value, 'apellido')}
+                        />
+                        <Input
+                            placeholder="Teléfono"
+                            value={guestData.telefono}
+                            onChange={e => handlePhoneInput(e.target.value)}
+                        />
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleConfirmarReserva} className="bg-rose-900 text-white">Confirmar Reserva</Button>
+                        <Button onClick={handleConfirmarReserva} disabled={loading} className="bg-rose-900 text-white">
+                            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirmar Reserva"}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -543,3 +578,5 @@ export function RoomManagement() {
         </div>
     );
 }
+
+const CheckIconLarge = () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-green-600"><polyline points="20 6 9 17 4 12"/></svg>;
