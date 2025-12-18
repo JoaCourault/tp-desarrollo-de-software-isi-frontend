@@ -161,7 +161,6 @@ export function GrillaDisponibilidad({
                             const esInicioMismaHab = tempSelection.roomId === row.habitacion.id_habitacion && tempSelection.start === dia.fecha && !tempSelection.end;
 
                             // Nueva validación: ¿Esta celda es una noche que ya está en el carrito?
-                            // Bloqueamos desde el inicio hasta el día ANTERIOR al fin (el fin está libre para entrada)
                             const estaEnCarrito = finalSelections.some(sel =>
                                 sel.idHabitacion === row.habitacion.id_habitacion &&
                                 dia.fecha >= sel.fechaDesde &&
@@ -187,20 +186,45 @@ export function GrillaDisponibilidad({
                             else if (dia.estado === "RESERVADA") {
                                 cursor = "cursor-pointer";
 
-                                // === NUEVA LÓGICA: Checkout -> Reserva (DIAGONAL SIN LINEA) ===
-                                if (dia.esSalida && dia.tipoSalida === "ESTADIA") {
-                                    customStyle = {
-                                        background: `linear-gradient(to bottom right, ${COLORS.OCUPADA} 50%, ${COLORS.RESERVADA} 50%)`
-                                    };
-                                    alignmentClass = "relative";
-                                    txtColor = "";
-                                    cellContent = (
-                                        <>
-                                            <span className="absolute top-4 left-2 text-[9px] font-bold text-red-400 leading-none">Out</span>
-                                            <span className="absolute bottom-4 right-2 text-[9px] font-bold text-yellow-600 leading-none">Res</span>
-                                        </>
-                                    );
+                                if (dia.esSalida) {
+                                    // A) Checkout -> Reserva (Rojo/Amarillo)
+                                    if (dia.tipoSalida === "ESTADIA") {
+                                        customStyle = {
+                                            background: `linear-gradient(to bottom right, ${COLORS.OCUPADA} 50%, ${COLORS.RESERVADA} 50%)`
+                                        };
+                                        alignmentClass = "relative";
+                                        txtColor = "";
+                                        cellContent = (
+                                            <>
+                                                <span className="absolute top-4 left-2 text-[9px] font-bold text-red-400 leading-none">Out</span>
+                                                <span className="absolute bottom-4 right-2 text-[9px] font-bold text-yellow-600 leading-none">Res</span>
+                                            </>
+                                        );
+                                    }
+                                        // B) Reserva -> Reserva (Amarillo/Amarillo pero dividido)
+                                    // Este es el nuevo caso agregado
+                                    else if (dia.tipoSalida === "RESERVA") {
+                                        customStyle = {
+                                            // Aunque es el mismo color, usamos el gradiente para mantener consistencia
+                                            // y los textos indicarán el cambio.
+                                            background: `linear-gradient(to bottom right, ${COLORS.RESERVADA} 50%, ${COLORS.RESERVADA} 50%)`
+                                        };
+                                        alignmentClass = "relative";
+                                        txtColor = "";
+                                        cellContent = (
+                                            <>
+                                                <span className="absolute top-4 left-2 text-[9px] font-bold text-yellow-600 leading-none">Res</span>
+                                                <span className="absolute bottom-4 right-2 text-[9px] font-bold text-yellow-600 leading-none">Res</span>
+                                            </>
+                                        );
+                                    } else {
+                                        // Fallback reserva normal
+                                        bgClass = "bg-yellow-50 hover:bg-yellow-100";
+                                        txtColor = "text-yellow-600 font-medium";
+                                        cellContent = "Res";
+                                    }
                                 } else {
+                                    // Reserva Estándar (Día intermedio)
                                     bgClass = "bg-yellow-50 hover:bg-yellow-100";
                                     txtColor = "text-yellow-600 font-medium";
                                     cellContent = "Res";
@@ -212,6 +236,7 @@ export function GrillaDisponibilidad({
                                 cellContent = "Mant";
                             }
                             else if (dia.estado === "DISPONIBLE") {
+                                // Caso base: Libre
                                 bgClass = "bg-green-50/50 hover:bg-green-100";
                                 txtColor = "text-green-600";
                                 cellContent = "Libre";
@@ -222,6 +247,7 @@ export function GrillaDisponibilidad({
                                     txtColor = "";
 
                                     if (dia.tipoSalida === "ESTADIA") {
+                                        // Checkout -> Libre (Rojo/Verde)
                                         customStyle = {
                                             background: `linear-gradient(to bottom right, ${COLORS.OCUPADA} 50%, ${COLORS.DISPONIBLE} 50%)`
                                         };
@@ -233,6 +259,7 @@ export function GrillaDisponibilidad({
                                         );
 
                                     } else if (dia.tipoSalida === "RESERVA") {
+                                        // Reserva -> Libre (Amarillo/Verde)
                                         customStyle = {
                                             background: `linear-gradient(to bottom right, ${COLORS.RESERVADA} 50%, ${COLORS.DISPONIBLE} 50%)`
                                         };
