@@ -329,10 +329,10 @@ export function CheckOutPanel() {
 
                                         {/* Buscador Externo */}
                                         <div className="border-t pt-6">
-                                            <Label className="mb-3 block text-gray-700 font-medium">Facturar a un tercero (CU07 Paso 5.B)</Label>
+                                            <Label className="mb-3 block text-gray-700 font-medium">Facturar a un tercero</Label>
                                             <div className="flex gap-3">
                                                 <Input
-                                                    placeholder="Ingrese CUIT o DNI"
+                                                    placeholder="Ingrese CUIT"
                                                     value={searchCuit}
                                                     onChange={e => setSearchCuit(e.target.value)}
                                                     className="h-10"
