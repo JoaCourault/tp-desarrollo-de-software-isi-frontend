@@ -56,11 +56,10 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* Logout */}
+                        {/* Logout - CORREGIDO: Sin variant="outline" y forzando colores */}
                         <Button
-                            variant="outline"
                             onClick={handleLogout}
-                            className="bg-rose-900 text-green hover:bg-rose-700"
+                            className="bg-rose-900 text-white hover:bg-rose-700 hover:text-white shadow-sm transition-colors"
                         >
                             <LogOut className="w-4 h-4 mr-2" /> Cerrar Sesión
                         </Button>
@@ -85,7 +84,7 @@ export default function DashboardPage() {
                             <Users className="w-4 h-4" /> Gestión de Huéspedes
                         </Button>
 
-                        {/* TAB Habitaciones */}
+                        {/* TAB Habitaciones / Reservar */}
                         <Button
                             variant={activeTab === "rooms" ? "secondary" : "ghost"}
                             onClick={() => setActiveTab("rooms")}

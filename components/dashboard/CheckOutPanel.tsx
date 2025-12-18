@@ -302,7 +302,7 @@ export function CheckOutPanel() {
                                                     className="h-10"
                                                     onKeyDown={(e) => e.key === "Enter" && handleSearchCuit()}
                                                 />
-                                                <Button onClick={handleSearchCuit} disabled={loading} className="bg-gray-800 text-white hover:bg-gray-700 px-6">
+                                                <Button onClick={handleSearchCuit} disabled={loading} className="bg-rose-800 text-white hover:bg-gray-700 px-6">
                                                     {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Search className="w-4 h-4 mr-2" />}
                                                     Buscar
                                                 </Button>
