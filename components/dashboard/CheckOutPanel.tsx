@@ -8,23 +8,21 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import ModalAlert from "@/components/modalAlert/modalAlert";
 import { PayerForm } from "./ResponsablePago/PayerForm";
-import { EstadiaDetalleDTO, PayerDTO, ItemFacturable, PersonaFisicaDTO, PersonaJuridicaDTO } from "@/src/dto/Facturacion.dto";
+import { EstadiaDetalleDTO, ItemFacturable, PersonaFisicaDTO, PersonaJuridicaDTO } from "@/src/dto/Facturacion.dto";
 import { generarFacturaPDF } from "@/src/utils/pdfGenerator";
-import { Search, PlusCircle, AlertCircle, Loader2, RefreshCcw, Users as UsersIcon, Check as CheckIcon, FileText, Clock } from "lucide-react";
+import { Search, PlusCircle, Loader2, RefreshCcw, Users as UsersIcon, Check as CheckIcon, FileText, Clock } from "lucide-react";
 
 //  IMPORTS
 import { estadiaApi } from "@/src/api/estadia.api";
 import { responsableApi } from "@/src/api/responsable.api";
 import { facturacionApi } from "@/src/api/facturacion.api";
-import { ResponsableDePago } from "@/src/dto/ResponsableDePago/ResponsableDePago.dto";
-import { Console } from "console";
 
 export function CheckOutPanel() {
     const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
 
     //  Campos de Entrada
     const [searchRoom, setSearchRoom] = useState("");
-    const [searchTime, setSearchTime] = useState("10:00"); // Por defecto 10:00 según enunciado
+    const [searchTime, setSearchTime] = useState("10:00");
 
     const [estadiaData, setEstadiaData] = useState<EstadiaDetalleDTO | null>(null);
     const [selectedPayer, setSelectedPayer] = useState<any>(null);
@@ -59,20 +57,14 @@ export function CheckOutPanel() {
         setItemsToBill([]);
     };
 
-    useEffect(()=> {
-        console.log(selectedPayer)
-    }, [selectedPayer])
-
     //   BUSCAR
     const handleSearchHabitacion = async () => {
-        // Validaciones explícitas
         let errores = [];
         if (!searchRoom) errores.push("Falta el número de habitación.");
         if (!searchTime) errores.push("Falta la hora de salida.");
 
         if (errores.length > 0) {
             triggerAlert("warning", "Datos Incompletos", errores.join(" "));
-
             if (!searchRoom) roomInputRef.current?.focus();
             else if (!searchTime) timeInputRef.current?.focus();
             return;
@@ -80,16 +72,14 @@ export function CheckOutPanel() {
 
         setLoading(true);
         try {
-            // Enviamos también la hora para el cálculo de recargos
             const data = await estadiaApi.buscarPorHabitacion(searchRoom, searchTime);
-
             if (data && data.idEstadia) {
                 if (data.items) {
-                    data.items.forEach(i => i.seleccionado = true); // Pre-seleccionar todo
+                    data.items.forEach(i => i.seleccionado = true);
                 }
                 setEstadiaData(data);
                 setItemsToBill(data.items || []);
-                setStep(1); // Pasar a seleccionar responsable
+                setStep(1);
             } else {
                 triggerAlert("warning", "No encontrada", "No hay estadía activa en esa habitación.");
                 roomInputRef.current?.focus();
@@ -110,22 +100,19 @@ export function CheckOutPanel() {
         setLoading(true);
         try {
             const found = await responsableApi.buscarPorCuit(searchCuit);
-            console.log("found: ", found)
-            if (found) {
+            if (found && found.length > 0) {
                 setSelectedPayer(found[0]);
             } else {
                 triggerAlert("info", "No encontrado", "No existe responsable con ese documento. Puede darlo de alta.");
                 setSelectedPayer(null);
             }
         } catch (error: any) {
-            if(error.message) triggerAlert("error", "Error", error.message);
-            else triggerAlert("error", "Error", "Error de conexión.");
+            triggerAlert("error", "Error", error.message || "Error de conexión.");
         } finally {
             setLoading(false);
         }
     };
 
-    //  LÓGICA DE ITEMS
     const toggleItem = (id: string) => {
         setItemsToBill(prev => prev.map(item =>
             item.id === id ? { ...item, seleccionado: !item.seleccionado } : item
@@ -138,40 +125,28 @@ export function CheckOutPanel() {
             .reduce((acc, curr) => acc + (curr.precioUnitario * curr.cantidad), 0);
     };
 
-    // Determinar tipo factura
     const determinarTipoFactura = () => {
-        console.log(selectedPayer)
-            if (!selectedPayer) return "B";
+        if (!selectedPayer) return "B";
 
-            // 1. Normalizamos el texto
-            const condicion = (
-                ((selectedPayer.responsableDePagoGenerado.tipo==="PERSONA_FISICA" || selectedPayer.tipo==="PERSONA_FISICA") ?
-                    selectedPayer.huesped?.posicionIva :
-                    "RESPONSABLE INSCRIPTO") || ""
-            ).toUpperCase().trim();
+        const esJuridica = selectedPayer.tipo === "PERSONA_JURIDICA" || selectedPayer.responsableDePagoGenerado?.tipo === "PERSONA_JURIDICA";
 
-            // 2. Verificamos si tiene CUIT
-            const tieneCuit = selectedPayer.responsableDePagoGenerado.cuit && selectedPayer.responsableDePagoGenerado.cuit.length > 5 || selectedPayer.cuit && selectedPayer.cuit.length > 5; // Validación mínima de largo
+        // Si es jurídica, por regla de negocio es Responsable Inscripto -> Factura A
+        if (esJuridica) return "A";
 
-            // 3. Comparamos
-            if (condicion.includes("RESPONSABLE INSCRIPTO") && tieneCuit) {
-                return "A";
-            }
+        // Si es física, depende de su posición IVA
+        const condicion = (selectedPayer.huesped?.posicionIva || "").toUpperCase().trim();
+        if (condicion.includes("RESPONSABLE INSCRIPTO")) return "A";
 
-            return "B"; // Por defecto Consumidor Final o si falta CUIT
-        };
+        return "B";
+    };
 
-    //  CONFIRMACIÓN Y FACTURACIÓN
     const handlePreFacturar = () => {
         if (!estadiaData || !selectedPayer) return;
-
-        // Verificar items tildados
         const itemsSeleccionados = itemsToBill.filter(i => i.seleccionado);
         if (itemsSeleccionados.length === 0) {
             triggerAlert("warning", "Selección Vacía", "Debe seleccionar al menos un ítem para facturar.");
             return;
         }
-
         setConfirmFacturaOpen(true);
     };
 
@@ -184,9 +159,11 @@ export function CheckOutPanel() {
         const tipoFact = determinarTipoFactura();
 
         try {
+            const idResp = selectedPayer.responsableDePagoGenerado?.idResponsableDePago || selectedPayer.idResponsableDePago || selectedPayer.idResponsable;
+
             const resultado = await facturacionApi.generar({
                 idEstadia: estadiaData!.idEstadia,
-                idResponsable: selectedPayer.responsableDePagoGenerado.idResponsableDePago|| selectedPayer.idResponsableDePago || selectedPayer.idResponsable,
+                idResponsable: idResp,
                 items: itemsSeleccionados.map(i => ({
                     idServicio: i.id,
                     descripcion: i.descripcion,
@@ -197,7 +174,6 @@ export function CheckOutPanel() {
                 total: totalCalculado
             });
 
-            // Generar PDF
             generarFacturaPDF({
                 numeroComprobante: resultado.numeroComprobante,
                 fechaEmision: new Date().toLocaleDateString(),
@@ -207,7 +183,7 @@ export function CheckOutPanel() {
                 total: totalCalculado
             });
 
-            setStep(3); // Éxito
+            setStep(3);
         } catch (error: any) {
             console.error(error);
             triggerAlert("error", "Fallo al Facturar", error.message || "Ocurrió un error interno.");
@@ -216,20 +192,11 @@ export function CheckOutPanel() {
         }
     };
 
-    //  LÓGICA DE CANCELAR (Global)
     const handleCancelClick = () => {
-        if (step === 0) {
-            // Si no empezamos, solo limpiamos
-            handleReset();
-        } else {
-            // Si hay datos, pedimos confirmación
-            setCancelConfirmOpen(true);
-        }
+        if (step === 0) handleReset();
+        else setCancelConfirmOpen(true);
     };
 
-    useEffect(() => {
-        console.log("El que paga: ", selectedPayer);
-    }, [selectedPayer])
     return (
         <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Card className="shadow-md border-rose-100 bg-white">
@@ -249,7 +216,6 @@ export function CheckOutPanel() {
                 <CardContent className="pt-8 px-8 min-h-[400px]">
                     <div className="space-y-6">
 
-                        {/*  PASO 0: BÚSQUEDA  */}
                         {step === 0 && (
                             <div className="max-w-xl mx-auto space-y-6 mt-8">
                                 <div className="grid grid-cols-2 gap-6 items-end">
@@ -287,13 +253,9 @@ export function CheckOutPanel() {
                                         {loading ? "Buscando..." : "Buscar Estadía"}
                                     </Button>
                                 </div>
-                                <div className="text-xs text-gray-400 text-center">
-                                    * Campos obligatorios para el cálculo de recargos.
-                                </div>
                             </div>
                         )}
 
-                        {/*  PASO 1: RESPONSABLE  */}
                         {step === 1 && (
                             <div className="max-w-4xl mx-auto">
                                 {showCreateForm ? (
@@ -304,30 +266,32 @@ export function CheckOutPanel() {
                                     />
                                 ) : (
                                     <div className="space-y-8">
-                                        {/* Ocupantes */}
                                         <div className="bg-rose-50 p-6 rounded-lg border border-rose-100 shadow-sm">
                                             <h4 className="font-bold text-rose-900 mb-4 flex items-center gap-2 text-lg">
                                                 <UsersIcon /> Selecciona el ocupante a ser el responsable de pago
                                             </h4>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {estadiaData?.ocupantes?.map((occ: any) => (
-                                                    <div
-                                                        key={occ.idResponsable || occ.dni}
-                                                        onClick={() => { setSelectedPayer(occ); setSearchError(""); }}
-                                                        className={`p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center bg-white shadow-sm hover:shadow-md
-                                                            ${(selectedPayer?.idResponsableDePago === occ.idResponsable || selectedPayer?.idResponsable === occ.idResponsable) ? 'border-rose-600 ring-2 ring-rose-600 ring-opacity-50' : 'hover:border-rose-300'}`}
-                                                    >
-                                                        <div>
-                                                            <span className="font-bold text-gray-800 block">{(occ as PersonaFisicaDTO).nombre} {(occ as PersonaFisicaDTO).apellido}</span>
-                                                            <span className="text-sm text-gray-500 block">DNI: {(occ as PersonaFisicaDTO).dni}</span>
+                                                {estadiaData?.ocupantes?.map((occ: any) => {
+                                                    const isSelected = (selectedPayer?.idResponsableDePago === occ.idResponsable || selectedPayer?.idResponsable === occ.idResponsable);
+                                                    return (
+                                                        <div
+                                                            key={occ.idResponsable || occ.dni}
+                                                            // SOLUCIÓN: Eliminamos setSearchError("");
+                                                            onClick={() => setSelectedPayer(occ)}
+                                                            className={`p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center bg-white shadow-sm hover:shadow-md
+                                                                ${isSelected ? 'border-rose-600 ring-2 ring-rose-600 ring-opacity-50' : 'hover:border-rose-300'}`}
+                                                        >
+                                                            <div>
+                                                                <span className="font-bold text-gray-800 block">{occ.nombre} {occ.apellido}</span>
+                                                                <span className="text-sm text-gray-500 block">DNI: {occ.dni}</span>
+                                                            </div>
+                                                            {isSelected && <CheckIcon className="text-rose-600" />}
                                                         </div>
-                                                        {selectedPayer?.idResponsableDePago === occ.idResponsable && <CheckIcon className="text-rose-600" />}
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
 
-                                        {/* Buscador Externo */}
                                         <div className="border-t pt-6">
                                             <Label className="mb-3 block text-gray-700 font-medium">Facturar a un tercero</Label>
                                             <div className="flex gap-3">
@@ -347,11 +311,11 @@ export function CheckOutPanel() {
                                                 </Button>
                                             </div>
 
-                                            {selectedPayer && !estadiaData?.ocupantes?.find(o => o.idResponsable === selectedPayer.idResponsable) && (
+                                            {selectedPayer && !estadiaData?.ocupantes?.find(o => o.idResponsable === (selectedPayer.idResponsableDePago || selectedPayer.idResponsable)) && (
                                                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800 font-semibold flex justify-between items-center shadow-sm">
                                                     <span className="flex flex-col">
                                                         <span className="text-xs uppercase text-green-600 mb-1">Tercero Seleccionado</span>
-                                                        <span className="text-lg">{selectedPayer.responsableDePagoGenerado.razonSocial || selectedPayer.razonSocial || `${selectedPayer?.huesped?.nombre} ${selectedPayer?.huesped?.apellido}`}</span>
+                                                        <span className="text-lg">{selectedPayer.responsableDePagoGenerado?.razonSocial || selectedPayer.razonSocial || `${selectedPayer?.huesped?.nombre} ${selectedPayer?.huesped?.apellido}`}</span>
                                                     </span>
                                                     <CheckIcon className="text-green-600" />
                                                 </div>
@@ -373,22 +337,20 @@ export function CheckOutPanel() {
                             </div>
                         )}
 
-                        {/*  PASO 2: DETALLE Y CONFIRMACIÓN  */}
                         {step === 2 && selectedPayer && (
                             <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in">
-                                {/* Cabecera Responsable */}
                                 <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 flex justify-between items-start">
                                     <div>
                                         <p className="text-gray-500 font-bold uppercase tracking-wider text-xs mb-1">Responsable de Pago</p>
                                         <p className="text-xl font-bold text-gray-900">
-                                            {(selectedPayer.responsableDePagoGenerado.tipo === "PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA")?
-                                                (selectedPayer.responsableDePagoGenerado.razonSocial || (selectedPayer as PersonaJuridicaDTO).razonSocial) : `${(selectedPayer as PersonaFisicaDTO).nombre} ${(selectedPayer as PersonaFisicaDTO).apellido}`}
+                                            {(selectedPayer.responsableDePagoGenerado?.tipo === "PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA")?
+                                                (selectedPayer.responsableDePagoGenerado?.razonSocial || selectedPayer.razonSocial) : `${selectedPayer.nombre || selectedPayer.huesped?.nombre} ${selectedPayer.apellido || selectedPayer.huesped?.apellido}`}
                                         </p>
                                         <div className="text-sm text-gray-600 mt-1">
-                                            {(selectedPayer.responsableDePagoGenerado.tipo==="PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA") ? `CUIT: ${selectedPayer.responsableDePagoGenerado.cuit || (selectedPayer as PersonaJuridicaDTO).cuit}` : `DNI: ${(selectedPayer as PersonaFisicaDTO).dni}`}
+                                            {(selectedPayer.responsableDePagoGenerado?.tipo==="PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA") ? `CUIT: ${selectedPayer.responsableDePagoGenerado?.cuit || selectedPayer.cuit}` : `DNI: ${selectedPayer.dni || selectedPayer.huesped?.numDoc}`}
                                             <span className="mx-2">|</span>
                                             <span className="font-semibold">{
-                                                (selectedPayer.responsableDePagoGenerado.tipo==="PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA") ? "Responsable Inscripto" : `${(selectedPayer as PersonaFisicaDTO).posicionIva}`
+                                                (selectedPayer.responsableDePagoGenerado?.tipo==="PERSONA_JURIDICA" || selectedPayer.tipo==="PERSONA_JURIDICA") ? "Responsable Inscripto" : (selectedPayer.posicionIva || selectedPayer.huesped?.posicionIva || "Consumidor Final")
                                             }</span>
                                         </div>
                                     </div>
@@ -399,7 +361,6 @@ export function CheckOutPanel() {
                                     </div>
                                 </div>
 
-                                {/* Tabla de Items */}
                                 <div className="border rounded-lg overflow-hidden shadow-sm">
                                     <div className="bg-gray-100 p-3 border-b font-semibold text-sm grid grid-cols-12 text-gray-700">
                                         <div className="col-span-1 text-center">Sel.</div>
@@ -425,7 +386,6 @@ export function CheckOutPanel() {
                                         ))}
                                     </div>
 
-                                    {/* Footer Total */}
                                     <div className="bg-rose-50 p-6 flex justify-between items-center border-t border-rose-100">
                                         <div className="flex flex-col">
                                             <span className="font-bold text-rose-900 text-lg">TOTAL A PAGAR</span>
@@ -435,7 +395,6 @@ export function CheckOutPanel() {
                                     </div>
                                 </div>
 
-                                {/* Botones de Acción */}
                                 <div className="flex justify-between pt-6">
                                     <Button variant="outline" onClick={() => setStep(1)} disabled={loading} className="px-6">Atrás</Button>
                                     <Button
@@ -449,7 +408,6 @@ export function CheckOutPanel() {
                             </div>
                         )}
 
-                        {/*  PASO 3: ÉXITO  */}
                         {step === 3 && (
                             <div className="flex flex-col items-center justify-center py-16 animate-in zoom-in-95 duration-500">
                                 <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
@@ -469,9 +427,6 @@ export function CheckOutPanel() {
                 </CardContent>
             </Card>
 
-            {/*  MODALES EMERGENTES  */}
-
-            {/* 1. Alerta Genérica */}
             <ModalAlert
                 open={modalAlert.open}
                 type={modalAlert.type}
@@ -481,7 +436,6 @@ export function CheckOutPanel() {
                 okText="Aceptar"
             />
 
-            {/* 2. Confirmación Cancelar */}
             <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -495,7 +449,6 @@ export function CheckOutPanel() {
                 </DialogContent>
             </Dialog>
 
-            {/* 3. Confirmación Facturar */}
             <Dialog open={confirmFacturaOpen} onOpenChange={setConfirmFacturaOpen}>
                 <DialogContent className="bg-green-50 border-green-200">
                     <DialogHeader>

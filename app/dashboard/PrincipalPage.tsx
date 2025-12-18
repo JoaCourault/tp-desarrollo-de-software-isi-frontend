@@ -52,7 +52,7 @@ export default function DashboardPage() {
                             </div>
                             <div>
                                 <h1 className="text-lg font-bold text-rose-950">Flower Hotel</h1>
-                                <p className="text-xs text-muted-foreground">Acceso Root</p>
+                                <p className="text-xs text-muted-foreground">Administracion Conserje</p>
                             </div>
                         </div>
 
