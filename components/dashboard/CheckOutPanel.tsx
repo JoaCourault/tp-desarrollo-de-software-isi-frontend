@@ -307,7 +307,7 @@ export function CheckOutPanel() {
                                         {/* Ocupantes */}
                                         <div className="bg-rose-50 p-6 rounded-lg border border-rose-100 shadow-sm">
                                             <h4 className="font-bold text-rose-900 mb-4 flex items-center gap-2 text-lg">
-                                                <UsersIcon /> Ocupantes (Selección Rápida)
+                                                <UsersIcon /> Selecciona el ocupante a ser el responsable de pago
                                             </h4>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {estadiaData?.ocupantes?.map((occ: any) => (
