@@ -417,7 +417,7 @@ export function CheckOutPanel() {
                                 <p className="text-gray-600 text-lg mb-8 text-center max-w-md">
                                     La factura se ha generado en el sistema y el comprobante PDF se ha descargado.
                                 </p>
-                                <Button onClick={handleReset} className="bg-gray-900 hover:bg-gray-800 text-white px-8 py-6 text-lg shadow-lg flex items-center gap-2">
+                                <Button onClick={handleReset} className="bg-gray-700 hover:bg-gray-800 text-white px-8 py-6 text-lg shadow-lg flex items-center gap-2">
                                     <RefreshCcw className="w-5 h-5" />
                                     Nueva Facturación
                                 </Button>
