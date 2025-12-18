@@ -56,7 +56,7 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* Logout - CORREGIDO: Sin variant="outline" y forzando colores */}
+                        {/* Logout */}
                         <Button
                             onClick={handleLogout}
                             className="bg-rose-900 text-white hover:bg-rose-700 hover:text-white shadow-sm transition-colors"
